@@ -27,7 +27,8 @@ DIALOG360_TEMPLATE_NAMESPACE=           # Namespace del template (vacío si es P
 - [x] Fase 1: Login con Supabase Auth
 - [x] Fase 2: Onboarding + WABA connect
 - [x] Fase 3: Envío de solicitudes de reseña
-- [ ] Fase 4: Historial de envíos + Settings (review_link)
+- [x] Fase 4 (parte 1): Settings — review_link + ABM sucursales
+- [ ] Fase 4 (parte 2): Historial de envíos
 - [ ] Fase 5: Billing
 
 ## Decisiones tomadas
@@ -98,13 +99,31 @@ nos ayudaría mucho que lo cuentes acá: {{3}} — ¡Muchas gracias!"
 - `{{2}}` = org.name
 - `{{3}}` = org.review_link
 
+## Arquitectura de settings (Fase 4 parte 1)
+
+```
+app/
+  dashboard/
+    page.tsx              → header con link "Ajustes"; aviso amber con link a /dashboard/settings si falta review_link
+    settings/page.tsx     → Server Component; carga org + locations; ← Volver al dashboard
+  api/settings/
+    org/route.ts          → PATCH: actualiza review_link de la org
+    locations/route.ts    → POST: crea sucursal
+    locations/[id]/route.ts → PATCH: edita sucursal / DELETE: elimina sucursal
+components/
+  org-review-link-form.tsx  → Client Component: input URL + botón guardar
+  locations-manager.tsx     → Client Component: lista con edición inline + agregar/eliminar
+supabase/migrations/
+  20260329000002_fase4_locations.sql → CREATE locations con RLS
+```
+
 ### Schema de DB completo
 - `organizations`: `id`, `name`, `owner_id`, `review_link`, `created_at`
 - `waba_connections`: `id`, `org_id`, `channel_id`, `api_key`, `status`, `created_at`
 - `message_logs`: `id`, `org_id`, `customer_name`, `phone`, `status`, `error`, `created_at`
+- `locations`: `id`, `org_id`, `name`, `review_link`, `created_at`
 
-## Próxima sesión: Fase 4 — Historial + Settings
+## Próxima sesión: Fase 4 (parte 2) — Historial de envíos
 
-1. **`/dashboard/historial`**: tabla con los últimos envíos (customer_name, phone, status, created_at)
-2. **`/dashboard/settings`**: formulario para configurar `review_link` de la org
-3. El aviso de "falta review_link" en el dashboard debería linkear a `/dashboard/settings`
+1. **`/dashboard/historial`**: tabla paginada con los envíos (customer_name, phone, status, created_at)
+2. Link desde el header del dashboard a `/dashboard/historial`
