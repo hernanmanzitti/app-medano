@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const { customer_name, phone } = await request.json()
+  const { customer_name, phone, location_id } = await request.json()
 
   if (!customer_name || typeof customer_name !== 'string' || customer_name.trim().length === 0) {
     return NextResponse.json({ error: 'El nombre del cliente es requerido' }, { status: 400 })
@@ -37,7 +37,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Organización no encontrada' }, { status: 404 })
   }
 
-  if (!org.review_link) {
+  // Resolver el review_link: sucursal seleccionada o link general de la org
+  let reviewLink = org.review_link
+
+  if (location_id && typeof location_id === 'string') {
+    const { data: location } = await supabase
+      .from('locations')
+      .select('review_link')
+      .eq('id', location_id)
+      .eq('org_id', org.id)
+      .single()
+
+    if (!location) {
+      return NextResponse.json({ error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    reviewLink = location.review_link
+  }
+
+  if (!reviewLink) {
     return NextResponse.json({ error: 'Configurá el link de reseña antes de enviar mensajes' }, { status: 422 })
   }
 
@@ -76,7 +93,7 @@ export async function POST(request: Request) {
             parameters: [
               { type: 'text', text: customer_name.trim() },
               { type: 'text', text: org.name },
-              { type: 'text', text: org.review_link },
+              { type: 'text', text: reviewLink },
             ],
           },
         ],
@@ -108,6 +125,7 @@ export async function POST(request: Request) {
     phone: fullPhone,
     status: messageStatus,
     error: errorDetail,
+    location_id: location_id ?? null,
   })
 
   if (messageStatus === 'failed') {

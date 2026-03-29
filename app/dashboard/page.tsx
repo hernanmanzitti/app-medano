@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase-server'
 import { UserNav } from '@/components/user-nav'
 import { SendReviewForm } from '@/components/send-review-form'
+import { MessageLogsTable } from '@/components/message-logs-table'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -18,6 +19,20 @@ export default async function DashboardPage() {
 
   if (!org) redirect('/onboarding')
 
+  const [{ data: locations }, { data: logs }] = await Promise.all([
+    supabase
+      .from('locations')
+      .select('id, name')
+      .eq('org_id', org.id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('message_logs')
+      .select('id, customer_name, phone, status, created_at, location:locations(name)')
+      .eq('org_id', org.id)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ])
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
@@ -30,9 +45,9 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-6 py-12">
+      <main className="max-w-2xl mx-auto px-6 py-10 space-y-10">
         {!org.review_link && (
-          <div className="mb-6 p-3 bg-amber-50 border border-amber-300 text-amber-800 rounded text-sm">
+          <div className="p-3 bg-amber-50 border border-amber-300 text-amber-800 rounded text-sm">
             ⚠️ Todavía no configuraste el link de reseña.{' '}
             <Link href="/dashboard/settings" className="underline font-medium">
               Configurarlo ahora
@@ -40,8 +55,21 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Nueva solicitud de reseña</h2>
-        <SendReviewForm />
+        {/* Formulario de envío */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-900 mb-5">Nueva solicitud de reseña</h2>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <SendReviewForm locations={locations ?? []} />
+          </div>
+        </section>
+
+        {/* Historial */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-900 mb-5">Solicitudes enviadas</h2>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <MessageLogsTable logs={logs ?? []} />
+          </div>
+        </section>
       </main>
     </div>
   )

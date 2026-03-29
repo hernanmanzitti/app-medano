@@ -4,9 +4,19 @@ import { useState } from 'react'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
-export function SendReviewForm() {
+interface Location {
+  id: string
+  name: string
+}
+
+interface Props {
+  locations: Location[]
+}
+
+export function SendReviewForm({ locations }: Props) {
   const [customerName, setCustomerName] = useState('')
   const [phone, setPhone] = useState('')
+  const [locationId, setLocationId] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -19,7 +29,11 @@ export function SendReviewForm() {
       const res = await fetch('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_name: customerName, phone }),
+        body: JSON.stringify({
+          customer_name: customerName,
+          phone,
+          location_id: locationId || null,
+        }),
       })
 
       const data = await res.json()
@@ -28,6 +42,7 @@ export function SendReviewForm() {
       setStatus('success')
       setCustomerName('')
       setPhone('')
+      setLocationId('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
       setStatus('error')
@@ -74,7 +89,7 @@ export function SendReviewForm() {
           onChange={(e) => setCustomerName(e.target.value)}
           required
           placeholder="Ej: María García"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder:text-gray-500"
           disabled={status === 'loading'}
         />
       </div>
@@ -95,12 +110,34 @@ export function SendReviewForm() {
             required
             placeholder="1155441234"
             maxLength={10}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder:text-gray-500"
             disabled={status === 'loading'}
           />
         </div>
         <p className="mt-1 text-xs text-gray-400">Sin el 15, solo el número local (ej: 1155441234)</p>
       </div>
+
+      {locations.length > 0 && (
+        <div>
+          <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+            Sucursal
+          </label>
+          <select
+            id="location"
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+            disabled={status === 'loading'}
+          >
+            <option value="">Sin sucursal (link general)</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button
         type="submit"
