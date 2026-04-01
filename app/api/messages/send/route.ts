@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
   const { data: waba } = await supabase
     .from('waba_connections')
-    .select('api_key')
+    .select('api_key, twilio_subaccount_sid, phone_number')
     .eq('org_id', org.id)
     .eq('status', 'active')
     .single()
@@ -76,42 +76,47 @@ export async function POST(request: Request) {
   let errorDetail: string | null = null
 
   if (!isMock) {
-    // Llamada real a 360dialog
-    const templateName = process.env.DIALOG360_TEMPLATE_NAME ?? 'review_request'
-    const templateNamespace = process.env.DIALOG360_TEMPLATE_NAMESPACE ?? ''
+    const accountSid = process.env.TWILIO_ACCOUNT_SID!
+    const authToken = process.env.TWILIO_AUTH_TOKEN!
+    const templateSid = process.env.TWILIO_TEMPLATE_SID!
 
-    const body = {
-      to: fullPhone,
-      type: 'template',
-      template: {
-        namespace: templateNamespace,
-        name: templateName,
-        language: { code: 'es', policy: 'deterministic' },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              { type: 'text', text: customer_name.trim() },
-              { type: 'text', text: org.name },
-              { type: 'text', text: reviewLink },
-            ],
-          },
-        ],
-      },
+    // Obtener subaccount y número del cliente desde waba_connections
+    const { data: wabaFull } = await supabase
+      .from('waba_connections')
+      .select('twilio_subaccount_sid, phone_number')
+      .eq('org_id', org.id)
+      .eq('status', 'active')
+      .single()
+
+    if (!wabaFull?.twilio_subaccount_sid || !wabaFull?.phone_number) {
+      return NextResponse.json({ error: 'WABA no configurada correctamente' }, { status: 422 })
     }
 
-    const res = await fetch('https://waba.360dialog.io/v1/messages', {
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${wabaFull.twilio_subaccount_sid}/Messages.json`
+
+    const params = new URLSearchParams({
+      To: `whatsapp:+${fullPhone}`,
+      From: `whatsapp:${wabaFull.phone_number}`,
+      ContentSid: templateSid,
+      ContentVariables: JSON.stringify({
+        '1': customer_name.trim(),
+        '2': org.name,
+        '3': reviewLink,
+      }),
+    })
+
+    const res = await fetch(twilioUrl, {
       method: 'POST',
       headers: {
-        'D360-API-KEY': waba.api_key,
-        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify(body),
+      body: params.toString(),
     })
 
     if (!res.ok) {
       const detail = await res.text()
-      console.error('360dialog send error:', detail)
+      console.error('Twilio send error:', detail)
       messageStatus = 'failed'
       errorDetail = detail
     }
