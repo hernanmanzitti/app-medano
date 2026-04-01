@@ -38,7 +38,7 @@ export function AuthForm() {
         setPassword('')
       } else if (mode === 'forgot') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${appUrl}/auth/callback?next=/reset-password`,
+          redirectTo: `${appUrl}/auth/callback/reset`,
         })
         if (error) throw error
         setMessage('Te enviamos un email para restablecer tu contraseña.')
