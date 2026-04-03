@@ -74,6 +74,7 @@ export async function POST(request: Request) {
 
   let messageStatus: 'sent' | 'failed' = 'sent'
   let errorDetail: string | null = null
+  let wamId: string | null = null
 
   if (!isMock) {
     const accountSid = process.env.TWILIO_ACCOUNT_SID!
@@ -119,6 +120,9 @@ export async function POST(request: Request) {
       console.error('Twilio send error:', detail)
       messageStatus = 'failed'
       errorDetail = detail
+    } else {
+      const twilioData = await res.json()
+      wamId = twilioData.sid ?? null
     }
   }
   // Si isMock: se omite el envío real y se registra como 'sent'
@@ -130,6 +134,7 @@ export async function POST(request: Request) {
     phone: fullPhone,
     status: messageStatus,
     error: errorDetail,
+    wam_id: wamId,
     location_id: location_id ?? null,
   })
 
