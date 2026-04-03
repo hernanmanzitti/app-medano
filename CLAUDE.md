@@ -35,7 +35,11 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 4 (parte 1): Settings — review_link + ABM sucursales
 - [x] Fase 4 (parte 2): Historial de envíos en dashboard + dropdown de sucursal en formulario
 - [x] Integración Twilio: send/route.ts implementado con Twilio API
-- [x] Fase 5 (parte 1): webhook `POST /api/webhooks/twilio` — recibe eventos y actualiza message_logs
+- [x] Fix crítico: send/route.ts no guardaba wam_id al insertar en message_logs — ya corregido
+- [x] Fase 5 (parte 1): webhook `POST /api/webhooks/twilio` — recibe eventos y actualiza message_logs (funciona una vez aplicado el fix del wam_id)
+- [x] Deploy productivo en Netlify (appmedano.netlify.app) — netlify.toml + @netlify/plugin-nextjs + variables de entorno configuradas
+- [x] Auth emails: fix de URLs localhost → NEXT_PUBLIC_APP_URL, ruta /auth/callback, recuperación de contraseña (/reset-password)
+- [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
 - [ ] Integración Twilio: connect-waba/route.ts (crear subaccount + comprar número)
 - [ ] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -409,21 +413,37 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 
 ## Próxima sesión
 
+### Infraestructura (resuelto)
+- Netlify conectado a GitHub (rama `main`), auto-deploy activado
+- `netlify.toml` + `@netlify/plugin-nextjs` configurados
+- Variables de entorno en Netlify: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_WABA_MOCK`
+- Middleware de auth en `middleware.ts` (fue `proxy.ts` — no renombrar)
+- Migración DB ya aplicada en producción
+- SMTP: Resend con dominio `medano.co`, API key en Supabase → Authentication → SMTP
+- Auth emails usan `NEXT_PUBLIC_APP_URL`, ruta `/auth/callback` y `/auth/callback/reset`
+- Supabase → Authentication → URL Configuration: Site URL y Redirect URLs deben apuntar a `https://appmedano.netlify.app`
+
 ### Inmediato (desbloquea onboarding real)
-1. Correr la migración pendiente: `npx supabase login` → `npx supabase db push`
+1. Cargar variables de entorno `TWILIO_*` en `.env.local` y en Netlify
 2. Implementar `connect-waba/route.ts`: crear subaccount Twilio + comprar número via Twilio Numbers API
-3. Cargar variables de entorno `TWILIO_*` en `.env.local` y en Netlify
-4. Configurar el webhook en Twilio Console → `https://app.medano.co/api/webhooks/twilio`
+3. Configurar el webhook en Twilio Console → `https://appmedano.netlify.app/api/webhooks/twilio`
 
 ### Siguiente
-5. Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
-6. Fase 7: Envío múltiple + envíos programados
-7. Fase 8: Opt-out / Blacklist
-8. Fase 9: Derivación de respuestas
+6. Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
+7. Fase 7: Envío múltiple + envíos programados
+8. Fase 8: Opt-out / Blacklist
+9. Fase 9: Derivación de respuestas
 
 ### Horizonte
-9. Fase 10: Estadísticas completas + click tracking
-10. Fase 11: Bot de WhatsApp
-11. Fase 12: Panel Admin + Become mode
-12. Fase 13: Billing (prepago de créditos, corte automático)
-13. Fase 6: Onboarding wizard guiado (puede ir antes o después del panel admin según prioridad)
+10. Fase 10: Estadísticas completas + click tracking
+11. Fase 11: Bot de WhatsApp
+12. Fase 12: Panel Admin + Become mode
+13. Fase 13: Billing (prepago de créditos, corte automático)
+14. Fase 6: Onboarding wizard guiado (puede ir antes o después del panel admin según prioridad)
+
+## Skills de Claude.ai (proyecto)
+
+Skills activos en este proyecto para uso en Claude.ai:
+- `medano-dev-prompt` — genera prompts listos para Claude Code
+- `medano-feature-planner` — planifica features con contexto del stack y roadmap
+- `medano-context` — ayuda a mantener este CLAUDE.md actualizado al final de cada sesión
