@@ -40,6 +40,9 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Deploy productivo en Netlify (appmedano.netlify.app) — netlify.toml + @netlify/plugin-nextjs + variables de entorno configuradas
 - [x] Auth emails: fix de URLs localhost → NEXT_PUBLIC_APP_URL, ruta /auth/callback, recuperación de contraseña (/reset-password)
 - [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
+- [x] Variables de entorno Twilio cargadas en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID)
+- [x] Template de reseña creado en Twilio Content Template Builder (pendiente aprobación Meta)
+- [ ] Ticket de soporte abierto en Twilio para desbloquear subaccounts + long code numbers
 - [ ] Integración Twilio: connect-waba/route.ts (crear subaccount + comprar número)
 - [ ] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -424,9 +427,19 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 - Supabase → Authentication → URL Configuration: Site URL y Redirect URLs deben apuntar a `https://appmedano.netlify.app`
 
 ### Inmediato (desbloquea onboarding real)
-1. Cargar variables de entorno `TWILIO_*` en `.env.local` y en Netlify
-2. Implementar `connect-waba/route.ts`: crear subaccount Twilio + comprar número via Twilio Numbers API
-3. Configurar el webhook en Twilio Console → `https://appmedano.netlify.app/api/webhooks/twilio`
+1. Esperar respuesta de Twilio Support para desbloquear subaccounts + long code numbers
+2. Una vez desbloqueado:
+   a. Crear subaccount "Medano" en Twilio Console
+   b. Comprar número de Canada (+1, ~$1.15/mes) — no requiere Regulatory Bundle
+   c. Registrar número como WhatsApp sender: Messaging → Senders → WhatsApp senders
+   d. Configurar webhook en Twilio Console → `https://appmedano.netlify.app/api/webhooks/twilio`
+   e. Insertar registro en `waba_connections` en Supabase:
+      - `twilio_subaccount_sid` = SID del subaccount creado
+      - `phone_number` = número comprado
+      - `status` = active
+      - `api_key` = cualquier valor que NO empiece con `mock_`
+3. Desactivar `NEXT_PUBLIC_WABA_MOCK` en Netlify
+4. Hacer envío de prueba real desde app.medano.co
 
 ### Siguiente
 6. Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
@@ -440,6 +453,19 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 12. Fase 12: Panel Admin + Become mode
 13. Fase 13: Billing (prepago de créditos, corte automático)
 14. Fase 6: Onboarding wizard guiado (puede ir antes o después del panel admin según prioridad)
+
+## Aprendizajes Twilio (sesión 2 abril 2026)
+
+- Cuentas nuevas de Twilio tienen dos restricciones que requieren ticket de soporte:
+  subaccounts bloqueados + long code numbers bloqueados en todos los países
+- Números argentinos cuestan $8/mes + requieren Regulatory Bundle — no usar
+- Números UK también requieren Regulatory Bundle — no usar
+- **Número de Canada (+1, ~$1.15/mes) es la opción correcta** — sin regulatory bundle
+- Template de reseña creado: Content SID = `HX4abd93d52c5db977ab40042080028aa2`
+- Template pendiente de aprobación por Meta (puede tardar hasta 24hs)
+- Para el piloto: una vez desbloqueada la cuenta, usar cuenta master como subaccount
+  hasta tener subaccounts habilitados
+- Pricing corregido: el $1.50/mes estimado para número aplica con Canada, no Argentina
 
 ## Skills de Claude.ai (proyecto)
 
