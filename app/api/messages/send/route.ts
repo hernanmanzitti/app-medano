@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+
+function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 // Formatea número local argentino → E.164 sin el +
 // Entrada: "1155441234" → Salida: "5491155441234"
@@ -157,7 +165,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await supabase.from('message_logs').insert({
+    await getServiceClient().from('message_logs').insert({
       org_id: org.id,
       customer_name: (customer_name as string).trim(),
       phone: fullPhone,
@@ -221,7 +229,7 @@ export async function POST(request: Request) {
       location_id: location_id ?? null,
     }
     console.log('Batch insert — payload:', insertPayload)
-    const { error: insertError } = await supabase.from('message_logs').insert(insertPayload)
+    const { error: insertError } = await getServiceClient().from('message_logs').insert(insertPayload)
     if (insertError) {
       console.error('Batch insert — error en message_logs:', insertError)
     } else {
