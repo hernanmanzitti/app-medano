@@ -37,6 +37,7 @@ export function SendReviewForm({ locations }: Props) {
   const isLoading = status === 'loading'
   const hasContacts = contacts.length > 0
   const hasCurrentContact = customerName.trim().length > 0 && phone.trim().length > 0
+  const locationName = locations.find(l => l.id === locationId)?.name ?? 'Sin sucursal'
 
   const clearContactFields = () => {
     setCustomerName('')
@@ -237,7 +238,10 @@ export function SendReviewForm({ locations }: Props) {
           <ul className="divide-y divide-gray-100 border border-gray-200 rounded-md overflow-hidden">
             {contacts.map((c, i) => (
               <li key={i} className="flex items-center justify-between px-3 py-2 bg-white text-sm">
-                <span className="text-gray-800 font-medium">{c.customer_name}</span>
+                <div className="flex flex-col">
+                  <span className="text-gray-800 font-medium">{c.customer_name}</span>
+                  <span className="text-xs text-gray-400">{locationName}</span>
+                </div>
                 <span className="text-gray-400 mx-3">+549 {c.phone}</span>
                 <button
                   type="button"
