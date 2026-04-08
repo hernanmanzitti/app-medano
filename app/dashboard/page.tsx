@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { UserNav } from '@/components/user-nav'
 import { SendReviewForm } from '@/components/send-review-form'
 import { MessageLogsTable } from '@/components/message-logs-table'
@@ -19,13 +20,18 @@ export default async function DashboardPage() {
 
   if (!org) redirect('/onboarding')
 
+  const serviceClient = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   const [{ data: locations }, { data: logs }] = await Promise.all([
     supabase
       .from('locations')
       .select('id, name')
       .eq('org_id', org.id)
       .order('created_at', { ascending: true }),
-    supabase
+    serviceClient
       .from('message_logs')
       .select('id, customer_name, phone, status, created_at, location_id, locations(name)')
       .eq('org_id', org.id)
