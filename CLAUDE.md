@@ -42,7 +42,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
 - [x] Variables de entorno Twilio cargadas en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID)
 - [x] Template de reseña creado en Twilio Content Template Builder (pendiente aprobación Meta)
-- [ ] Ticket de soporte abierto en Twilio para desbloquear subaccounts + long code numbers
+- [x] Ticket de soporte resuelto — cuenta Twilio desbloqueada (subaccounts + long code numbers) el 8 abril 2026
 - [ ] Integración Twilio: connect-waba/route.ts (crear subaccount + comprar número)
 - [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -446,7 +446,7 @@ Cliente (negocio) → Panel Medano → API Twilio → Número canadiense de Meda
 - Ticket de soporte abierto en Twilio para desbloquear: subaccounts + long code numbers en Canadá
 - Sin este desbloqueo no se puede hacer el onboarding real de clientes
 
-### Próximos pasos cuando Twilio desbloquee
+### Próximos pasos — Twilio desbloqueado ✅ (listo para ejecutar)
 1. Crear subaccount "Medano" en Twilio Console
 2. Comprar número canadiense (+1, ~$1.15/mes)
 3. Registrar número como WhatsApp sender en Twilio Console
@@ -462,6 +462,37 @@ Cliente (negocio) → Panel Medano → API Twilio → Número canadiense de Meda
 - Fase 12: Panel Admin + Become mode
 - Fase 13: Billing
 - Evaluación de BSP: 360dialog o Meta Cloud API directo cuando haya 10+ clientes pagando
+
+### Decisión final (8 abril 2026)
+- **Piloto: Twilio** — número canadiense de Medano, onboarding manual, sin coexistencia
+- **Escala: 360dialog** — cuando haya 10+ clientes pagando, migrar para coexistencia + onboarding automatizado
+- **Largo plazo: evaluar software factory** para construir el multi-tenant si el negocio valida
+- El piloto con Twilio sirve para validar que los clientes pagan antes de comprometer €250/mes fijos
+- Bloqueante actual: respuesta de Twilio Support (subaccounts + long code numbers)
+
+### Investigación de BSPs realizada (8 abril 2026)
+
+| BSP | Coexistencia | ISV/Partner API | Fee fijo | Veredicto |
+|-----|-------------|-----------------|----------|-----------|
+| Twilio | ❌ | ✅ Subaccounts | No | ✅ Piloto |
+| 360dialog | ✅ | ✅ Partner API | €250/mes | ✅ Escala (10+ clientes) |
+| Gupshup | ❌ | ✅ | No (6% markup marketing) | ❌ |
+| Blip | ✅ | ❌ Enterprise only | Enterprise | ❌ |
+| Meta Cloud API directo | ✅ nativo | N/A (vos construís todo) | $0 | ⏳ Largo plazo |
+
+### Meta Cloud API directo — conclusión
+- Viable para 1 cliente o automatización propia (ver video Benjamín Cordero)
+- Para multi-tenant requiere construir: token management (tokens expiran c/60 días),
+  webhook routing por cliente, rate limiting
+- No vale la pena para el piloto — Twilio abstrae toda esa complejidad
+- Evaluar cuando haya 20+ clientes y revenue justifique la inversión en infraestructura
+
+### Ecosistema Meta — conceptos clave
+- **BSP:** intermediario habilitado por Meta (Twilio, 360dialog, Gupshup). Vos les alquilás la infraestructura
+- **ISV:** eso es Medano. Software que se monta arriba de un BSP
+- **Tech Provider:** categoría de Meta para ISVs que quieren automatizar onboarding via Embedded Signup
+- **Embedded Signup:** popup de Meta que el cliente completa para conectar su WABA. Requiere ser Tech Provider
+- Sin Tech Provider: onboarding manual (Hernán configura cada cliente a mano) — viable para piloto
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 
