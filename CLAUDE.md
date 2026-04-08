@@ -475,6 +475,9 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 - `router.refresh()` de `next/navigation` refresca el Server Component sin recargar la página
 - Si una migración no se aplicó con supabase CLI, ejecutar el ALTER TABLE directamente en SQL Editor de Supabase
 - `NOTIFY pgrst, 'reload schema'` recarga el schema cache de PostgREST
+- Join de Supabase con RLS activo no trae datos relacionados aunque el join funcione a nivel DB → solución: hacer join en JS usando el array de locations ya fetcheado
+- Los inserts en `message_logs` y las queries del dashboard deben usar service role key (`SUPABASE_SERVICE_ROLE_KEY`) para evitar restricciones de RLS
+- Columna `wam_id` faltaba en producción — aplicar con `ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS wam_id TEXT` en SQL Editor si la migración no se aplicó via CLI
 
 ## Skills de Claude.ai (proyecto)
 
