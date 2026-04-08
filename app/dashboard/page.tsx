@@ -33,11 +33,18 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: true }),
     serviceClient
       .from('message_logs')
-      .select('id, customer_name, phone, status, created_at, location_id, locations(name)')
+      .select('id, customer_name, phone, status, created_at, location_id')
       .eq('org_id', org.id)
       .order('created_at', { ascending: false })
       .limit(20),
   ])
+
+  const logsWithLocation = (logs ?? []).map(log => ({
+    ...log,
+    locations: log.location_id
+      ? [{ name: locations?.find(l => l.id === log.location_id)?.name ?? null }]
+      : null,
+  }))
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -73,7 +80,7 @@ export default async function DashboardPage() {
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-5">Solicitudes enviadas</h2>
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <MessageLogsTable logs={logs ?? []} />
+            <MessageLogsTable logs={logsWithLocation} />
           </div>
         </section>
       </main>
