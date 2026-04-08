@@ -211,7 +211,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await supabase.from('message_logs').insert({
+    const insertPayload = {
       org_id: org.id,
       customer_name: (cName as string).trim(),
       phone: fullPhone,
@@ -219,7 +219,14 @@ export async function POST(request: Request) {
       error: errorDetail,
       wam_id: wamId,
       location_id: location_id ?? null,
-    })
+    }
+    console.log('Batch insert — payload:', insertPayload)
+    const { error: insertError } = await supabase.from('message_logs').insert(insertPayload)
+    if (insertError) {
+      console.error('Batch insert — error en message_logs:', insertError)
+    } else {
+      console.log('Batch insert — OK para', (cName as string).trim(), fullPhone)
+    }
 
     if (messageStatus === 'sent') {
       sentCount++

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function SendReviewForm({ locations }: Props) {
+  const router = useRouter()
   const [customerName, setCustomerName] = useState('')
   const [phone, setPhone] = useState('')
   const [locationId, setLocationId] = useState('')
@@ -80,6 +82,7 @@ export function SendReviewForm({ locations }: Props) {
       setStatus('success')
       setContacts([])
       clearContactFields()
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
       setStatus('error')
