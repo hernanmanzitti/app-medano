@@ -27,7 +27,7 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: true }),
     supabase
       .from('message_logs')
-      .select('id, customer_name, phone, status, created_at, location:locations(name)')
+      .select('id, customer_name, phone, status, created_at, location_id, location:locations(name)')
       .eq('org_id', org.id)
       .order('created_at', { ascending: false })
       .limit(20),

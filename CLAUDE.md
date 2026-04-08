@@ -44,9 +44,11 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Template de reseña creado en Twilio Content Template Builder (pendiente aprobación Meta)
 - [ ] Ticket de soporte abierto en Twilio para desbloquear subaccounts + long code numbers
 - [ ] Integración Twilio: connect-waba/route.ts (crear subaccount + comprar número)
-- [ ] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
+- [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
-- [ ] Fase 7: Envío múltiple + envíos programados
+- [x] Fase 7 (parte 1): API de envío múltiple — send/route.ts soporta batch via contacts[] (compatibilidad individual mantenida)
+- [x] Fase 7 (parte 2): UI de envío múltiple — agregar contactos de a uno, lista previa, envío batch
+- [x] Fase 7 (parte 3): Envíos programados — descartado para esta versión
 - [ ] Fase 8: Opt-out / Blacklist
 - [ ] Fase 9: Derivación de respuestas (reply forwarding)
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
@@ -466,6 +468,13 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 - Para el piloto: una vez desbloqueada la cuenta, usar cuenta master como subaccount
   hasta tener subaccounts habilitados
 - Pricing corregido: el $1.50/mes estimado para número aplica con Canada, no Argentina
+
+## Aprendizajes técnicos (sesión 7 abril 2026)
+- Error PGRST204 "column not found in schema cache" → la columna no existía en producción (wam_id faltaba en message_logs)
+- Los inserts en `message_logs` deben usar service role key para evitar restricciones de RLS
+- `router.refresh()` de `next/navigation` refresca el Server Component sin recargar la página
+- Si una migración no se aplicó con supabase CLI, ejecutar el ALTER TABLE directamente en SQL Editor de Supabase
+- `NOTIFY pgrst, 'reload schema'` recarga el schema cache de PostgREST
 
 ## Skills de Claude.ai (proyecto)
 

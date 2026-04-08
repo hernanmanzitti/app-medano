@@ -1,5 +1,4 @@
-import { formatDistanceToNow } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { format } from 'date-fns'
 
 interface MessageLog {
   id: string
@@ -7,7 +6,7 @@ interface MessageLog {
   phone: string
   status: string
   created_at: string
-  location: { name: string }[] | null
+  location: { name: string } | null
 }
 
 interface Props {
@@ -55,13 +54,10 @@ export function MessageLogsTable({ logs }: Props) {
                   +{log.phone}
                 </td>
                 <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">
-                  {log.location?.[0]?.name ?? <span className="text-gray-300">—</span>}
+                  {log.location?.name ?? <span className="text-gray-300">—</span>}
                 </td>
                 <td className="py-2.5 pr-4 text-gray-400 whitespace-nowrap">
-                  {formatDistanceToNow(new Date(log.created_at), {
-                    addSuffix: true,
-                    locale: es,
-                  })}
+                  {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')}
                 </td>
                 <td className="py-2.5">
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>
