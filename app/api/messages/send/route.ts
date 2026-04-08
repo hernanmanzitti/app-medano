@@ -8,6 +8,60 @@ function formatArgentinePhone(local: string): string {
   return `549${digits}`
 }
 
+function validateContact(customer_name: unknown, phone: unknown): string | null {
+  if (!customer_name || typeof customer_name !== 'string' || (customer_name as string).trim().length === 0) {
+    return 'El nombre del cliente es requerido'
+  }
+  if (!phone || typeof phone !== 'string' || !/^\d{8,10}$/.test((phone as string).trim())) {
+    return 'Teléfono inválido — ingresá solo el número local (ej: 1155441234)'
+  }
+  return null
+}
+
+async function dispatchToTwilio(
+  orgName: string,
+  reviewLink: string,
+  customerName: string,
+  fullPhone: string,
+  wabaSubaccountSid: string,
+  wabaPhoneNumber: string
+): Promise<{ wamId: string | null; error: string | null }> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID!
+  const authToken = process.env.TWILIO_AUTH_TOKEN!
+  const templateSid = process.env.TWILIO_TEMPLATE_SID!
+
+  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${wabaSubaccountSid}/Messages.json`
+
+  const params = new URLSearchParams({
+    To: `whatsapp:+${fullPhone}`,
+    From: `whatsapp:${wabaPhoneNumber}`,
+    ContentSid: templateSid,
+    ContentVariables: JSON.stringify({
+      '1': customerName,
+      '2': orgName,
+      '3': reviewLink,
+    }),
+  })
+
+  const res = await fetch(twilioUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  })
+
+  if (!res.ok) {
+    const detail = await res.text()
+    console.error('Twilio send error:', detail)
+    return { wamId: null, error: detail }
+  }
+
+  const twilioData = await res.json()
+  return { wamId: twilioData.sid ?? null, error: null }
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,17 +70,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  const { customer_name, phone, location_id } = await request.json()
+  const body = await request.json()
+  const { customer_name, phone, location_id, contacts } = body
 
-  if (!customer_name || typeof customer_name !== 'string' || customer_name.trim().length === 0) {
-    return NextResponse.json({ error: 'El nombre del cliente es requerido' }, { status: 400 })
+  const isBatch = Array.isArray(contacts) && contacts.length > 0
+
+  // Validación de entrada para modo individual
+  if (!isBatch) {
+    const validationError = validateContact(customer_name, phone)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
   }
 
-  if (!phone || typeof phone !== 'string' || !/^\d{8,10}$/.test(phone.trim())) {
-    return NextResponse.json({ error: 'Teléfono inválido — ingresá solo el número local (ej: 1155441234)' }, { status: 400 })
-  }
-
-  // Obtener org + waba_connection del usuario
+  // Obtener org del usuario
   const { data: org } = await supabase
     .from('organizations')
     .select('id, name, review_link')
@@ -37,7 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Organización no encontrada' }, { status: 404 })
   }
 
-  // Resolver el review_link: sucursal seleccionada o link general de la org
+  // Resolver review_link: sucursal seleccionada o link general de la org
   let reviewLink = org.review_link
 
   if (location_id && typeof location_id === 'string') {
@@ -69,78 +126,109 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No hay una WABA activa conectada' }, { status: 422 })
   }
 
-  const fullPhone = formatArgentinePhone(phone.trim())
   const isMock = waba.api_key.startsWith('mock_')
 
-  let messageStatus: 'sent' | 'failed' = 'sent'
-  let errorDetail: string | null = null
-  let wamId: string | null = null
+  if (!isMock && (!waba.twilio_subaccount_sid || !waba.phone_number)) {
+    return NextResponse.json({ error: 'WABA no configurada correctamente' }, { status: 422 })
+  }
 
-  if (!isMock) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID!
-    const authToken = process.env.TWILIO_AUTH_TOKEN!
-    const templateSid = process.env.TWILIO_TEMPLATE_SID!
+  // ── Modo individual (comportamiento original) ──────────────────────────────
+  if (!isBatch) {
+    const fullPhone = formatArgentinePhone((phone as string).trim())
 
-    // Obtener subaccount y número del cliente desde waba_connections
-    const { data: wabaFull } = await supabase
-      .from('waba_connections')
-      .select('twilio_subaccount_sid, phone_number')
-      .eq('org_id', org.id)
-      .eq('status', 'active')
-      .single()
+    let messageStatus: 'sent' | 'failed' = 'sent'
+    let errorDetail: string | null = null
+    let wamId: string | null = null
 
-    if (!wabaFull?.twilio_subaccount_sid || !wabaFull?.phone_number) {
-      return NextResponse.json({ error: 'WABA no configurada correctamente' }, { status: 422 })
+    if (!isMock) {
+      const result = await dispatchToTwilio(
+        org.name,
+        reviewLink,
+        (customer_name as string).trim(),
+        fullPhone,
+        waba.twilio_subaccount_sid,
+        waba.phone_number
+      )
+      if (result.error) {
+        messageStatus = 'failed'
+        errorDetail = result.error
+      } else {
+        wamId = result.wamId
+      }
     }
 
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${wabaFull.twilio_subaccount_sid}/Messages.json`
-
-    const params = new URLSearchParams({
-      To: `whatsapp:+${fullPhone}`,
-      From: `whatsapp:${wabaFull.phone_number}`,
-      ContentSid: templateSid,
-      ContentVariables: JSON.stringify({
-        '1': customer_name.trim(),
-        '2': org.name,
-        '3': reviewLink,
-      }),
+    await supabase.from('message_logs').insert({
+      org_id: org.id,
+      customer_name: (customer_name as string).trim(),
+      phone: fullPhone,
+      status: messageStatus,
+      error: errorDetail,
+      wam_id: wamId,
+      location_id: location_id ?? null,
     })
 
-    const res = await fetch(twilioUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
+    if (messageStatus === 'failed') {
+      return NextResponse.json({ error: 'Error al enviar el mensaje por WhatsApp' }, { status: 502 })
+    }
+
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── Modo batch ─────────────────────────────────────────────────────────────
+  let sentCount = 0
+  let failedCount = 0
+  const results: { customer_name: string; phone: string; status: string; error?: string }[] = []
+
+  for (const contact of contacts) {
+    const { customer_name: cName, phone: cPhone } = contact
+
+    const validationError = validateContact(cName, cPhone)
+    if (validationError) {
+      failedCount++
+      results.push({ customer_name: cName ?? '', phone: cPhone ?? '', status: 'failed', error: validationError })
+      continue
+    }
+
+    const fullPhone = formatArgentinePhone((cPhone as string).trim())
+    let messageStatus: 'sent' | 'failed' = 'sent'
+    let errorDetail: string | null = null
+    let wamId: string | null = null
+
+    if (!isMock) {
+      const result = await dispatchToTwilio(
+        org.name,
+        reviewLink,
+        (cName as string).trim(),
+        fullPhone,
+        waba.twilio_subaccount_sid,
+        waba.phone_number
+      )
+      if (result.error) {
+        messageStatus = 'failed'
+        errorDetail = result.error
+      } else {
+        wamId = result.wamId
+      }
+    }
+
+    await supabase.from('message_logs').insert({
+      org_id: org.id,
+      customer_name: (cName as string).trim(),
+      phone: fullPhone,
+      status: messageStatus,
+      error: errorDetail,
+      wam_id: wamId,
+      location_id: location_id ?? null,
     })
 
-    if (!res.ok) {
-      const detail = await res.text()
-      console.error('Twilio send error:', detail)
-      messageStatus = 'failed'
-      errorDetail = detail
+    if (messageStatus === 'sent') {
+      sentCount++
+      results.push({ customer_name: (cName as string).trim(), phone: fullPhone, status: 'sent' })
     } else {
-      const twilioData = await res.json()
-      wamId = twilioData.sid ?? null
+      failedCount++
+      results.push({ customer_name: (cName as string).trim(), phone: fullPhone, status: 'failed', error: errorDetail ?? undefined })
     }
   }
-  // Si isMock: se omite el envío real y se registra como 'sent'
 
-  // Guardar en message_logs siempre
-  await supabase.from('message_logs').insert({
-    org_id: org.id,
-    customer_name: customer_name.trim(),
-    phone: fullPhone,
-    status: messageStatus,
-    error: errorDetail,
-    wam_id: wamId,
-    location_id: location_id ?? null,
-  })
-
-  if (messageStatus === 'failed') {
-    return NextResponse.json({ error: 'Error al enviar el mensaje por WhatsApp' }, { status: 502 })
-  }
-
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ sent: sentCount, failed: failedCount, results })
 }

@@ -161,7 +161,7 @@ export function SendReviewForm({ locations }: Props) {
       )}
 
       {/* Formulario de carga de contacto */}
-      <form onSubmit={hasContacts ? (e) => { e.preventDefault(); handleAdd() } : handleSendOne} className="space-y-4">
+      <form onSubmit={hasContacts && !hasCurrentContact ? (e) => { e.preventDefault(); handleSendAll() } : hasContacts ? (e) => { e.preventDefault(); handleAdd() } : handleSendOne} className="space-y-4">
         <div>
           <label htmlFor="customerName" className="block text-sm font-medium text-gray-700 mb-1">
             Nombre del cliente
