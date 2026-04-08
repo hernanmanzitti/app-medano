@@ -416,45 +416,43 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 
 ---
 
-## Próxima sesión
+## Decisiones de BSP (sesión 8 abril 2026)
 
-### Infraestructura (resuelto)
-- Netlify conectado a GitHub (rama `main`), auto-deploy activado
-- `netlify.toml` + `@netlify/plugin-nextjs` configurados
-- Variables de entorno en Netlify: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_WABA_MOCK`
-- Middleware de auth en `middleware.ts` (fue `proxy.ts` — no renombrar)
-- Migración DB ya aplicada en producción
-- SMTP: Resend con dominio `medano.co`, API key en Supabase → Authentication → SMTP
-- Auth emails usan `NEXT_PUBLIC_APP_URL`, ruta `/auth/callback` y `/auth/callback/reset`
-- Supabase → Authentication → URL Configuration: Site URL y Redirect URLs deben apuntar a `https://appmedano.netlify.app`
+### BSP elegido: Twilio (confirmado para piloto)
+- Los mensajes del piloto salen de un número canadiense de Medano, no del número propio del cliente
+- El cliente opera desde su panel (app.medano.co) pero la infraestructura es de Medano
+- Funciona igual que cualquier plataforma de email marketing — el cliente envía "desde su marca" pero el número es de Medano
+- Cada cliente tendrá su propio subaccount de Twilio con número canadiense dedicado (~$1.15/mes)
+- Todos los subaccounts viven bajo la cuenta master de Twilio de Medano
+- El número canadiense se registra en el BM de Medano, NO en el BM del cliente
 
-### Inmediato (desbloquea onboarding real)
-1. Esperar respuesta de Twilio Support para desbloquear subaccounts + long code numbers
-2. Una vez desbloqueado:
-   a. Crear subaccount "Medano" en Twilio Console
-   b. Comprar número de Canada (+1, ~$1.15/mes) — no requiere Regulatory Bundle
-   c. Registrar número como WhatsApp sender: Messaging → Senders → WhatsApp senders
-   d. Configurar webhook en Twilio Console → `https://appmedano.netlify.app/api/webhooks/twilio`
-   e. Insertar registro en `waba_connections` en Supabase:
-      - `twilio_subaccount_sid` = SID del subaccount creado
-      - `phone_number` = número comprado
-      - `status` = active
-      - `api_key` = cualquier valor que NO empiece con `mock_`
-3. Desactivar `NEXT_PUBLIC_WABA_MOCK` en Netlify
-4. Hacer envío de prueba real desde app.medano.co
+### Por qué no cambiamos de BSP ahora
+- Coexistencia (número propio del cliente) requiere 360dialog (€250/mes fijo) o Meta Cloud API directo
+- Con 10-30 clientes piloto el fee fijo de 360dialog consume demasiado margen
+- Meta Cloud API directo requiere construir toda la infraestructura multi-tenant (token management, webhook routing, rate limiting) — no vale la pena para el piloto
+- Blip: BSP con coexistencia pero orientado a grandes empresas en Brasil, sin Partner API público para ISVs pequeños
+- Decisión de BSP final se revisa cuando haya 10+ clientes pagando
 
-### Siguiente
-6. Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
-7. Fase 7: Envío múltiple + envíos programados
-8. Fase 8: Opt-out / Blacklist
-9. Fase 9: Derivación de respuestas
+### Bloqueante actual
+- Ticket de soporte abierto en Twilio para desbloquear: subaccounts + long code numbers en Canadá
+- Sin este desbloqueo no se puede hacer el onboarding real de clientes
 
-### Horizonte
-10. Fase 10: Estadísticas completas + click tracking
-11. Fase 11: Bot de WhatsApp
-12. Fase 12: Panel Admin + Become mode
-13. Fase 13: Billing (prepago de créditos, corte automático)
-14. Fase 6: Onboarding wizard guiado (puede ir antes o después del panel admin según prioridad)
+### Próximos pasos cuando Twilio desbloquee
+1. Crear subaccount "Medano" en Twilio Console
+2. Comprar número canadiense (+1, ~$1.15/mes)
+3. Registrar número como WhatsApp sender en Twilio Console
+4. Configurar webhook: `https://appmedano.netlify.app/api/webhooks/twilio`
+5. Insertar registro en `waba_connections` en Supabase
+6. Desactivar `NEXT_PUBLIC_WABA_MOCK` en Netlify
+7. Hacer envío de prueba real con las empresas de los hermanos de Hernán
+
+### Siguiente fase de desarrollo (post-piloto)
+- Fase 6: Onboarding wizard guiado (reemplaza onboarding actual de 2 pasos)
+- Fase 8: Opt-out / Blacklist
+- Fase 9: Derivación de respuestas
+- Fase 12: Panel Admin + Become mode
+- Fase 13: Billing
+- Evaluación de BSP: 360dialog o Meta Cloud API directo cuando haya 10+ clientes pagando
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 
