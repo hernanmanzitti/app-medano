@@ -419,12 +419,21 @@ audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_a
 ## Decisiones de BSP (sesión 8 abril 2026)
 
 ### BSP elegido: Twilio (confirmado para piloto)
-- Los mensajes del piloto salen de un número canadiense de Medano, no del número propio del cliente
-- El cliente opera desde su panel (app.medano.co) pero la infraestructura es de Medano
-- Funciona igual que cualquier plataforma de email marketing — el cliente envía "desde su marca" pero el número es de Medano
-- Cada cliente tendrá su propio subaccount de Twilio con número canadiense dedicado (~$1.15/mes)
-- Todos los subaccounts viven bajo la cuenta master de Twilio de Medano
-- El número canadiense se registra en el BM de Medano, NO en el BM del cliente
+
+**Flujo real del piloto:**
+Cliente (negocio) → Panel Medano → API Twilio → Número canadiense de Medano → WhatsApp del consumidor final
+
+- El cliente NO conecta su BM ni toca nada de Meta
+- El cliente solo se registra en Medano con email, carga nombre + teléfono del consumidor final, y apreta Enviar
+- El número canadiense vive en el BM de Medano, registrado una sola vez en Twilio Console
+- Cada cliente nuevo = comprar un número canadiense nuevo en Twilio (~$1.15/mes) y registrarlo
+- El cliente nunca ve ni gestiona el número — es infraestructura de Medano
+
+**Evolución futura del modelo:**
+- Piloto: número canadiense en BM de Medano, cliente no toca nada
+- Escala: cliente puede portar el número canadiense a su propio BM si quiere más control
+- Ideal: cliente conecta su número argentino existente vía coexistencia (360dialog o Meta directo)
+- Medano evoluciona de "infraestructura + software" a "solo software" a medida que los clientes maduran
 
 ### Por qué no cambiamos de BSP ahora
 - Coexistencia (número propio del cliente) requiere 360dialog (€250/mes fijo) o Meta Cloud API directo
