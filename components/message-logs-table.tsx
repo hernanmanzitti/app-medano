@@ -6,7 +6,7 @@ interface MessageLog {
   phone: string
   status: string
   created_at: string
-  location: { name: string } | null
+  location: { name: string | null }[] | null
 }
 
 interface Props {
@@ -54,7 +54,7 @@ export function MessageLogsTable({ logs }: Props) {
                   +{log.phone}
                 </td>
                 <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">
-                  {log.location?.name ?? <span className="text-gray-300">—</span>}
+                  {log.location?.[0]?.name ?? <span className="text-gray-300">—</span>}
                 </td>
                 <td className="py-2.5 pr-4 text-gray-400 whitespace-nowrap">
                   {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')}
