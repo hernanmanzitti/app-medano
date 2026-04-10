@@ -99,8 +99,87 @@ export async function POST(request: Request) {
       })
     }
 
-    // Mensaje entrante que no es opt-out — ignorar
-    return NextResponse.json({ ok: true })
+    // Mensaje entrante — reply forwarding
+    const fromPhone = fromNumber.replace('whatsapp:+', '')
+    const toPhone = toNumber.replace('whatsapp:', '')
+
+    const serviceClient = getServiceClient()
+
+    const { data: waba } = await serviceClient
+      .from('waba_connections')
+      .select('org_id, twilio_subaccount_sid, phone_number')
+      .eq('phone_number', toPhone)
+      .eq('status', 'active')
+      .single()
+
+    if (!waba) {
+      return NextResponse.json({ ok: true })
+    }
+
+    const { data: org } = await serviceClient
+      .from('organizations')
+      .select('id, name, forwarding_number')
+      .eq('id', waba.org_id)
+      .single()
+
+    // Marcar el message_log más reciente de ese número como reply_received
+    const { data: recentLog } = await serviceClient
+      .from('message_logs')
+      .select('id')
+      .eq('org_id', waba.org_id)
+      .eq('phone', fromPhone)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentLog) {
+      await serviceClient
+        .from('message_logs')
+        .update({ status: 'reply_received' })
+        .eq('id', recentLog.id)
+    }
+
+    if (org?.forwarding_number) {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID!
+      const authToken = process.env.TWILIO_AUTH_TOKEN!
+      const forwardMessage = `📩 Respuesta de +${fromPhone} a tu solicitud de reseña:\n\n${incomingBody}\n\n— ${org.name}`
+
+      const forwardParams = new URLSearchParams({
+        To: `whatsapp:${org.forwarding_number}`,
+        From: `whatsapp:${waba.phone_number}`,
+        Body: forwardMessage,
+      })
+
+      try {
+        const res = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${waba.twilio_subaccount_sid}/Messages.json`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: 'Basic ' + btoa(`${accountSid}:${authToken}`),
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: forwardParams.toString(),
+          }
+        )
+        if (!res.ok) {
+          const detail = await res.text()
+          console.error('Webhook — error reenviando respuesta:', detail)
+        }
+      } catch (err) {
+        console.error('Webhook — excepción al reenviar:', err)
+      }
+
+      return NextResponse.json({ ok: true })
+    }
+
+    // Sin forwarding_number — responder al usuario final con TwiML
+    const orgName = org?.name ?? 'nosotros'
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>Gracias por tu mensaje. Para consultas, escribinos directamente a ${orgName}.</Message></Response>`
+    return new Response(twiml, {
+      status: 200,
+      headers: { 'Content-Type': 'text/xml' },
+    })
   }
 
   if (!messageSid || !messageStatus) {

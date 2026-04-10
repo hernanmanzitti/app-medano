@@ -7,15 +7,35 @@ export async function PATCH(request: Request) {
 
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { review_link } = await request.json()
+  const body = await request.json()
+  const { review_link, forwarding_number } = body
 
-  if (typeof review_link !== 'string' || review_link.trim().length === 0) {
-    return NextResponse.json({ error: 'El link de reseña es requerido' }, { status: 400 })
+  if (review_link === undefined && forwarding_number === undefined) {
+    return NextResponse.json(
+      { error: 'Al menos un campo requerido: review_link o forwarding_number' },
+      { status: 400 }
+    )
+  }
+
+  const updates: Record<string, string | null> = {}
+
+  if (review_link !== undefined) {
+    if (typeof review_link !== 'string' || review_link.trim().length === 0) {
+      return NextResponse.json({ error: 'El link de reseña es requerido' }, { status: 400 })
+    }
+    updates.review_link = review_link.trim()
+  }
+
+  if (forwarding_number !== undefined) {
+    updates.forwarding_number =
+      forwarding_number === null || forwarding_number === ''
+        ? null
+        : String(forwarding_number).trim()
   }
 
   const { error } = await supabase
     .from('organizations')
-    .update({ review_link: review_link.trim() })
+    .update(updates)
     .eq('owner_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

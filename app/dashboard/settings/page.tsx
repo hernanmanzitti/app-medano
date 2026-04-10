@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase-server'
 import { UserNav } from '@/components/user-nav'
 import { OrgReviewLinkForm } from '@/components/org-review-link-form'
 import { LocationsManager } from '@/components/locations-manager'
+import { ForwardingNumberForm } from '@/components/forwarding-number-form'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -13,7 +14,7 @@ export default async function SettingsPage() {
 
   const { data: org } = await supabase
     .from('organizations')
-    .select('id, name, review_link')
+    .select('id, name, review_link, forwarding_number')
     .eq('owner_id', user.id)
     .single()
 
@@ -57,6 +58,17 @@ export default async function SettingsPage() {
             Cada sucursal tiene su propio link de reseña.
           </p>
           <LocationsManager initialLocations={locations ?? []} />
+        </section>
+
+        <hr className="border-gray-200" />
+
+        {/* Sección 3: Derivación de respuestas */}
+        <section>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Derivación de respuestas</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Cuando un cliente responda tu mensaje, te lo reenviamos a este número. Incluí el código de país (ej: +5491155441234). Dejalo vacío para desactivar.
+          </p>
+          <ForwardingNumberForm initialForwardingNumber={org.forwarding_number ?? null} />
         </section>
 
       </main>
