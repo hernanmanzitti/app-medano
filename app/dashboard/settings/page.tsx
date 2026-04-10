@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase-server'
-import { UserNav } from '@/components/user-nav'
 import { OrgReviewLinkForm } from '@/components/org-review-link-form'
 import { LocationsManager } from '@/components/locations-manager'
 import { ForwardingNumberForm } from '@/components/forwarding-number-form'
@@ -27,51 +25,36 @@ export default async function SettingsPage() {
     .order('created_at', { ascending: true })
 
   return (
-    <div className="min-h-screen bg-[#f4f5fb]">
-      <header className="bg-[#00246b] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-[#b4b7d9] hover:text-white">
-            ← Volver
-          </Link>
-          <h1 className="text-lg font-semibold text-white">{org.name}</h1>
-        </div>
-        <UserNav />
-      </header>
+    <main className="max-w-xl mx-auto px-6 py-10 space-y-10">
 
-      <main className="max-w-xl mx-auto px-6 py-10 space-y-10">
+      <section>
+        <h2 className="text-base font-semibold text-[#00246b] mb-1">Link de reseña</h2>
+        <p className="text-sm text-[#646caa] mb-4">
+          Se usa en los mensajes cuando no hay una sucursal seleccionada.
+        </p>
+        <OrgReviewLinkForm initialReviewLink={org.review_link} />
+      </section>
 
-        {/* Sección 1: Link de reseña general */}
-        <section>
-          <h2 className="text-base font-semibold text-[#00246b] mb-1">Link de reseña</h2>
-          <p className="text-sm text-[#646caa] mb-4">
-            Se usa en los mensajes cuando no hay una sucursal seleccionada.
-          </p>
-          <OrgReviewLinkForm initialReviewLink={org.review_link} />
-        </section>
+      <hr className="border-[#b4b7d9]" />
 
-        <hr className="border-[#b4b7d9]" />
+      <section>
+        <h2 className="text-base font-semibold text-[#00246b] mb-1">Sucursales</h2>
+        <p className="text-sm text-[#646caa] mb-4">
+          Cada sucursal tiene su propio link de reseña.
+        </p>
+        <LocationsManager initialLocations={locations ?? []} />
+      </section>
 
-        {/* Sección 2: Sucursales */}
-        <section>
-          <h2 className="text-base font-semibold text-[#00246b] mb-1">Sucursales</h2>
-          <p className="text-sm text-[#646caa] mb-4">
-            Cada sucursal tiene su propio link de reseña.
-          </p>
-          <LocationsManager initialLocations={locations ?? []} />
-        </section>
+      <hr className="border-[#b4b7d9]" />
 
-        <hr className="border-[#b4b7d9]" />
+      <section>
+        <h2 className="text-base font-semibold text-[#00246b] mb-1">Derivación de respuestas</h2>
+        <p className="text-sm text-[#646caa] mb-4">
+          Cuando un cliente responda tu mensaje, te lo reenviamos a este número. Incluí el código de país (ej: +5491155441234). Dejalo vacío para desactivar.
+        </p>
+        <ForwardingNumberForm initialForwardingNumber={org.forwarding_number ?? null} />
+      </section>
 
-        {/* Sección 3: Derivación de respuestas */}
-        <section>
-          <h2 className="text-base font-semibold text-[#00246b] mb-1">Derivación de respuestas</h2>
-          <p className="text-sm text-[#646caa] mb-4">
-            Cuando un cliente responda tu mensaje, te lo reenviamos a este número. Incluí el código de país (ej: +5491155441234). Dejalo vacío para desactivar.
-          </p>
-          <ForwardingNumberForm initialForwardingNumber={org.forwarding_number ?? null} />
-        </section>
-
-      </main>
-    </div>
+    </main>
   )
 }
