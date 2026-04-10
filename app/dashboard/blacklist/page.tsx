@@ -31,21 +31,21 @@ export default async function BlacklistPage() {
     .order('created_at', { ascending: false })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#f4f5fb]">
+      <header className="bg-[#00246b] px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-800">
+          <Link href="/dashboard" className="text-sm text-[#b4b7d9] hover:text-white">
             ← Volver
           </Link>
-          <h1 className="text-lg font-semibold text-gray-900">{org.name}</h1>
+          <h1 className="text-lg font-semibold text-white">{org.name}</h1>
         </div>
         <UserNav />
       </header>
 
       <main className="max-w-xl mx-auto px-6 py-10">
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Lista de opt-out</h2>
-          <p className="text-sm text-gray-500 mb-6">
+          <h2 className="text-base font-semibold text-[#00246b] mb-1">Lista de opt-out</h2>
+          <p className="text-sm text-[#646caa] mb-6">
             Los números en esta lista no recibirán mensajes. Se agregan automáticamente cuando
             el usuario responde STOP, o podés agregarlos manualmente.
           </p>

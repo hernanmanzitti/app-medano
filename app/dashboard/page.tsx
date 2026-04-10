@@ -47,14 +47,14 @@ export default async function DashboardPage() {
   }))
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-gray-900">{org.name}</h1>
+    <div className="min-h-screen bg-[#f4f5fb]">
+      <header className="bg-[#00246b] px-6 py-4 flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-white">{org.name}</h1>
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/blacklist" className="text-sm text-gray-500 hover:text-gray-800">
+          <Link href="/dashboard/blacklist" className="text-sm text-[#b4b7d9] hover:text-white">
             🚫 Opt-out
           </Link>
-          <Link href="/dashboard/settings" className="text-sm text-gray-500 hover:text-gray-800">
+          <Link href="/dashboard/settings" className="text-sm text-[#b4b7d9] hover:text-white">
             Ajustes
           </Link>
           <UserNav />
@@ -73,16 +73,16 @@ export default async function DashboardPage() {
 
         {/* Formulario de envío */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-5">Nueva solicitud de reseña</h2>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-[#00246b] mb-5">Nueva solicitud de reseña</h2>
+          <div className="bg-white rounded-lg border border-[#b4b7d9] p-6">
             <SendReviewForm locations={locations ?? []} />
           </div>
         </section>
 
         {/* Historial */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-5">Solicitudes enviadas</h2>
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-[#00246b] mb-5">Solicitudes enviadas</h2>
+          <div className="bg-white rounded-lg border border-[#b4b7d9] p-6">
             <MessageLogsTable logs={logsWithLocation} />
           </div>
         </section>

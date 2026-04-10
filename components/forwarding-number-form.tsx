@@ -33,6 +33,9 @@ export function ForwardingNumberForm({ initialForwardingNumber }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-sm text-[#646caa]">
+        Cuando un cliente responda tu mensaje, te lo reenviamos al número que ingreses aquí. Incluí el código de país (ej: +5491155441234).
+      </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-3">
         <input
@@ -40,17 +43,23 @@ export function ForwardingNumberForm({ initialForwardingNumber }: Props) {
           value={value}
           onChange={(e) => { setValue(e.target.value); setStatus('idle') }}
           placeholder="+5491155441234"
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-3 py-2 border border-[#b4b7d9] rounded-md text-sm text-[#00246b] placeholder:text-[#b4b7d9] focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa]"
           disabled={status === 'loading'}
         />
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium whitespace-nowrap"
+          className="px-4 py-2 bg-[#1a4793] hover:bg-[#00246b] text-white text-sm rounded-md disabled:bg-[#b4b7d9] font-medium whitespace-nowrap"
         >
           {status === 'loading' ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
+      <p className="text-xs text-[#b4b7d9]">
+        Si lo dejás vacío, el cliente recibirá automáticamente este mensaje:{' '}
+        <span className="italic">
+          «Gracias por tu mensaje. Para consultas, escribinos directamente a [nombre de tu negocio].»
+        </span>
+      </p>
       {status === 'success' && (
         <p className="text-sm text-green-600">✓ Número guardado correctamente</p>
       )}

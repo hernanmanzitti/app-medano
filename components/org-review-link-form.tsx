@@ -43,13 +43,13 @@ export function OrgReviewLinkForm({ initialReviewLink }: Props) {
           onChange={(e) => { setReviewLink(e.target.value); setStatus('idle') }}
           required
           placeholder="https://g.page/r/tu-link-de-reseña"
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-3 py-2 border border-[#b4b7d9] rounded-md text-sm text-[#00246b] placeholder:text-[#b4b7d9] focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa]"
           disabled={status === 'loading'}
         />
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 font-medium whitespace-nowrap"
+          className="px-4 py-2 bg-[#1a4793] hover:bg-[#00246b] text-white text-sm rounded-md disabled:bg-[#b4b7d9] font-medium whitespace-nowrap"
         >
           {status === 'loading' ? 'Guardando...' : 'Guardar'}
         </button>

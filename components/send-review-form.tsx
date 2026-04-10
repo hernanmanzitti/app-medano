@@ -111,21 +111,21 @@ export function SendReviewForm({ locations }: Props) {
         <div className="text-4xl mb-3">✅</div>
         {batchResult ? (
           <>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-lg font-semibold text-[#00246b]">
               {batchResult.sent} enviado{batchResult.sent !== 1 ? 's' : ''}
               {batchResult.failed > 0 && `, ${batchResult.failed} fallido${batchResult.failed !== 1 ? 's' : ''}`}
             </p>
-            <p className="text-sm text-gray-500 mt-1 mb-6">Los mensajes llegarán en segundos al WhatsApp de cada cliente.</p>
+            <p className="text-sm text-[#646caa] mt-1 mb-6">Los mensajes llegarán en segundos al WhatsApp de cada cliente.</p>
           </>
         ) : (
           <>
-            <p className="text-lg font-semibold text-gray-900">¡Solicitud enviada!</p>
-            <p className="text-sm text-gray-500 mt-1 mb-6">El mensaje llegará en segundos al WhatsApp del cliente.</p>
+            <p className="text-lg font-semibold text-[#00246b]">¡Solicitud enviada!</p>
+            <p className="text-sm text-[#646caa] mt-1 mb-6">El mensaje llegará en segundos al WhatsApp del cliente.</p>
           </>
         )}
         <button
           onClick={handleReset}
-          className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm"
+          className="px-5 py-2 bg-[#1a4793] hover:bg-[#00246b] text-white rounded-md font-medium text-sm"
         >
           Enviar otra
         </button>
@@ -144,14 +144,14 @@ export function SendReviewForm({ locations }: Props) {
       {/* Sucursal — fija para todo el batch */}
       {locations.length > 0 && (
         <div>
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="location" className="block text-sm font-medium text-[#1a4793] mb-1">
             Sucursal
           </label>
           <select
             id="location"
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+            className="w-full px-3 py-2 border border-[#b4b7d9] rounded-md focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa] text-sm bg-white text-[#1a4793]"
             disabled={isLoading}
           >
             <option value="">Sin sucursal (link general)</option>
@@ -167,7 +167,7 @@ export function SendReviewForm({ locations }: Props) {
       {/* Formulario de carga de contacto */}
       <form onSubmit={hasContacts && !hasCurrentContact ? (e) => { e.preventDefault(); handleSendAll() } : hasContacts ? (e) => { e.preventDefault(); handleAdd() } : handleSendOne} className="space-y-4">
         <div>
-          <label htmlFor="customerName" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="customerName" className="block text-sm font-medium text-[#1a4793] mb-1">
             Nombre del cliente
           </label>
           <input
@@ -176,18 +176,18 @@ export function SendReviewForm({ locations }: Props) {
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="Ej: María García"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder:text-gray-500"
+            className="w-full px-3 py-2 border border-[#b4b7d9] rounded-md focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa] text-sm text-[#00246b] placeholder:text-[#b4b7d9]"
             disabled={isLoading}
             onKeyDown={handleKeyDown}
           />
         </div>
 
         <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="phone" className="block text-sm font-medium text-[#1a4793] mb-1">
             Teléfono
           </label>
           <div className="flex items-center gap-2">
-            <span className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-sm text-gray-500 select-none">
+            <span className="px-3 py-2 bg-[#f4f5fb] border border-[#b4b7d9] rounded-md text-sm text-[#646caa] select-none">
               +549
             </span>
             <input
@@ -197,12 +197,12 @@ export function SendReviewForm({ locations }: Props) {
               onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
               placeholder="1155441234"
               maxLength={10}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 placeholder:text-gray-500"
+              className="flex-1 px-3 py-2 border border-[#b4b7d9] rounded-md focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa] text-sm text-[#00246b] placeholder:text-[#b4b7d9]"
               disabled={isLoading}
               onKeyDown={handleKeyDown}
             />
           </div>
-          <p className="mt-1 text-xs text-gray-400">Sin el 15, solo el número local (ej: 1155441234)</p>
+          <p className="mt-1 text-xs text-[#b4b7d9]">Sin el 15, solo el número local (ej: 1155441234)</p>
         </div>
 
         <div className="flex gap-2">
@@ -211,7 +211,7 @@ export function SendReviewForm({ locations }: Props) {
             type="button"
             onClick={handleAdd}
             disabled={isLoading || !hasCurrentContact}
-            className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-40 font-medium text-sm"
+            className="flex-1 py-2.5 border border-[#b4b7d9] text-[#1a4793] rounded-md hover:bg-[#f4f5fb] disabled:opacity-40 font-medium text-sm"
           >
             + Agregar
           </button>
@@ -221,7 +221,7 @@ export function SendReviewForm({ locations }: Props) {
             <button
               type="submit"
               disabled={isLoading || !hasCurrentContact}
-              className="flex-1 bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 disabled:bg-gray-400 font-medium text-sm"
+              className="flex-1 bg-[#1a4793] hover:bg-[#00246b] text-white py-2.5 rounded-md disabled:bg-[#b4b7d9] font-medium text-sm"
             >
               {isLoading ? 'Enviando...' : 'Enviar por WhatsApp'}
             </button>
@@ -232,22 +232,22 @@ export function SendReviewForm({ locations }: Props) {
       {/* Lista de contactos agregados */}
       {hasContacts && (
         <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+          <p className="text-xs font-medium text-[#646caa] uppercase tracking-wide">
             Contactos a enviar ({contacts.length})
           </p>
-          <ul className="divide-y divide-gray-100 border border-gray-200 rounded-md overflow-hidden">
+          <ul className="divide-y divide-[#eceef8] border border-[#b4b7d9] rounded-md overflow-hidden">
             {contacts.map((c, i) => (
               <li key={i} className="flex items-center justify-between px-3 py-2 bg-white text-sm">
                 <div className="flex flex-col">
-                  <span className="text-gray-800 font-medium">{c.customer_name}</span>
-                  <span className="text-xs text-gray-400">{locationName}</span>
+                  <span className="text-[#1a4793] font-medium">{c.customer_name}</span>
+                  <span className="text-xs text-[#646caa]">{locationName}</span>
                 </div>
-                <span className="text-gray-400 mx-3">+549 {c.phone}</span>
+                <span className="text-[#646caa] mx-3">+549 {c.phone}</span>
                 <button
                   type="button"
                   onClick={() => handleRemove(i)}
                   disabled={isLoading}
-                  className="text-gray-400 hover:text-red-500 disabled:opacity-40 text-base leading-none"
+                  className="text-[#b4b7d9] hover:text-red-500 disabled:opacity-40 text-base leading-none"
                   aria-label="Eliminar contacto"
                 >
                   ✕
@@ -260,7 +260,7 @@ export function SendReviewForm({ locations }: Props) {
             type="button"
             onClick={handleSendAll}
             disabled={isLoading}
-            className="w-full bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 disabled:bg-gray-400 font-medium text-sm"
+            className="w-full bg-[#1a4793] hover:bg-[#00246b] text-white py-2.5 rounded-md disabled:bg-[#b4b7d9] font-medium text-sm"
           >
             {isLoading ? 'Enviando...' : `Enviar todos (${contacts.length})`}
           </button>

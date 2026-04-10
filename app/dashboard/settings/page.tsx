@@ -27,13 +27,13 @@ export default async function SettingsPage() {
     .order('created_at', { ascending: true })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#f4f5fb]">
+      <header className="bg-[#00246b] px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-800">
+          <Link href="/dashboard" className="text-sm text-[#b4b7d9] hover:text-white">
             ← Volver
           </Link>
-          <h1 className="text-lg font-semibold text-gray-900">{org.name}</h1>
+          <h1 className="text-lg font-semibold text-white">{org.name}</h1>
         </div>
         <UserNav />
       </header>
@@ -42,30 +42,30 @@ export default async function SettingsPage() {
 
         {/* Sección 1: Link de reseña general */}
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Link de reseña</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="text-base font-semibold text-[#00246b] mb-1">Link de reseña</h2>
+          <p className="text-sm text-[#646caa] mb-4">
             Se usa en los mensajes cuando no hay una sucursal seleccionada.
           </p>
           <OrgReviewLinkForm initialReviewLink={org.review_link} />
         </section>
 
-        <hr className="border-gray-200" />
+        <hr className="border-[#b4b7d9]" />
 
         {/* Sección 2: Sucursales */}
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Sucursales</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="text-base font-semibold text-[#00246b] mb-1">Sucursales</h2>
+          <p className="text-sm text-[#646caa] mb-4">
             Cada sucursal tiene su propio link de reseña.
           </p>
           <LocationsManager initialLocations={locations ?? []} />
         </section>
 
-        <hr className="border-gray-200" />
+        <hr className="border-[#b4b7d9]" />
 
         {/* Sección 3: Derivación de respuestas */}
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Derivación de respuestas</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="text-base font-semibold text-[#00246b] mb-1">Derivación de respuestas</h2>
+          <p className="text-sm text-[#646caa] mb-4">
             Cuando un cliente responda tu mensaje, te lo reenviamos a este número. Incluí el código de país (ej: +5491155441234). Dejalo vacío para desactivar.
           </p>
           <ForwardingNumberForm initialForwardingNumber={org.forwarding_number ?? null} />

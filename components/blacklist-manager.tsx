@@ -74,13 +74,13 @@ export function BlacklistManager({ initialItems }: BlacklistManagerProps) {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Ej: 1155441234"
-          className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 border border-[#b4b7d9] rounded px-3 py-2 text-sm text-[#00246b] placeholder:text-[#b4b7d9] focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa]"
           disabled={adding}
         />
         <button
           type="submit"
           disabled={adding || !phone.trim()}
-          className="px-4 py-2 bg-gray-900 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-[#1a4793] hover:bg-[#00246b] text-white text-sm rounded disabled:bg-[#b4b7d9] disabled:cursor-not-allowed"
         >
           {adding ? 'Agregando…' : 'Agregar número'}
         </button>
@@ -97,13 +97,13 @@ export function BlacklistManager({ initialItems }: BlacklistManagerProps) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por número…"
-          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-[#b4b7d9] rounded px-3 py-2 text-sm text-[#00246b] placeholder:text-[#b4b7d9] focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa]"
         />
       )}
 
       {/* Tabla */}
       {filtered.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-6">
+        <p className="text-sm text-[#646caa] text-center py-6">
           {items.length === 0
             ? 'No hay números en la lista de opt-out.'
             : 'Sin resultados para esa búsqueda.'}
@@ -112,7 +112,7 @@ export function BlacklistManager({ initialItems }: BlacklistManagerProps) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500 text-xs uppercase tracking-wide">
+              <tr className="border-b border-[#b4b7d9] text-left text-[#646caa] text-xs uppercase tracking-wide">
                 <th className="pb-2 pr-4 font-medium">Número</th>
                 <th className="pb-2 pr-4 font-medium">Origen</th>
                 <th className="pb-2 pr-4 font-medium">Fecha</th>
@@ -121,20 +121,20 @@ export function BlacklistManager({ initialItems }: BlacklistManagerProps) {
             </thead>
             <tbody>
               {filtered.map((item) => (
-                <tr key={item.id} className="border-b border-gray-100 last:border-0">
-                  <td className="py-3 pr-4 font-mono text-gray-900">+{item.phone}</td>
+                <tr key={item.id} className="border-b border-[#eceef8] last:border-0">
+                  <td className="py-3 pr-4 font-mono text-[#00246b]">+{item.phone}</td>
                   <td className="py-3 pr-4">
                     {item.origin === 'automatic' ? (
                       <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">
                         automático
                       </span>
                     ) : (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[#eceef8] text-[#646caa]">
                         manual
                       </span>
                     )}
                   </td>
-                  <td className="py-3 pr-4 text-gray-500">
+                  <td className="py-3 pr-4 text-[#b4b7d9]">
                     {format(new Date(item.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}
                   </td>
                   <td className="py-3 text-right">

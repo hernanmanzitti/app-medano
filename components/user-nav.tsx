@@ -42,10 +42,10 @@ export function UserNav() {
 
   return (
     <div className="flex items-center gap-4">
-      <span className="text-sm text-gray-600">{user.email}</span>
+      <span className="text-sm text-[#b4b7d9]">{user.email}</span>
       <button
         onClick={handleLogout}
-        className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+        className="px-3 py-1 bg-[#1a4793] hover:bg-[#646caa] text-white text-sm rounded"
       >
         Logout
       </button>
