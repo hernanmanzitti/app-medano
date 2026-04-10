@@ -16,6 +16,16 @@ function formatArgentinePhone(local: string): string {
   return `549${digits}`
 }
 
+async function isBlacklisted(orgId: string, phone: string): Promise<boolean> {
+  const { data } = await getServiceClient()
+    .from('blacklist')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('phone', phone)
+    .maybeSingle()
+  return data !== null
+}
+
 function validateContact(customer_name: unknown, phone: unknown): string | null {
   if (!customer_name || typeof customer_name !== 'string' || (customer_name as string).trim().length === 0) {
     return 'El nombre del cliente es requerido'
@@ -144,6 +154,19 @@ export async function POST(request: Request) {
   if (!isBatch) {
     const fullPhone = formatArgentinePhone((phone as string).trim())
 
+    if (await isBlacklisted(org.id, fullPhone)) {
+      await getServiceClient().from('message_logs').insert({
+        org_id: org.id,
+        customer_name: (customer_name as string).trim(),
+        phone: fullPhone,
+        status: 'blocked',
+        error: 'Número en lista de opt-out',
+        wam_id: null,
+        location_id: location_id ?? null,
+      })
+      return NextResponse.json({ ok: true, blocked: true })
+    }
+
     let messageStatus: 'sent' | 'failed' = 'sent'
     let errorDetail: string | null = null
     let wamId: string | null = null
@@ -198,6 +221,22 @@ export async function POST(request: Request) {
     }
 
     const fullPhone = formatArgentinePhone((cPhone as string).trim())
+
+    if (await isBlacklisted(org.id, fullPhone)) {
+      await getServiceClient().from('message_logs').insert({
+        org_id: org.id,
+        customer_name: (cName as string).trim(),
+        phone: fullPhone,
+        status: 'blocked',
+        error: 'Número en lista de opt-out',
+        wam_id: null,
+        location_id: location_id ?? null,
+      })
+      results.push({ customer_name: (cName as string).trim(), phone: fullPhone, status: 'blocked' })
+      failedCount++
+      continue
+    }
+
     let messageStatus: 'sent' | 'failed' = 'sent'
     let errorDetail: string | null = null
     let wamId: string | null = null

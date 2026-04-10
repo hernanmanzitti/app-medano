@@ -51,6 +51,9 @@ export default async function DashboardPage() {
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <h1 className="text-lg font-semibold text-gray-900">{org.name}</h1>
         <div className="flex items-center gap-4">
+          <Link href="/dashboard/blacklist" className="text-sm text-gray-500 hover:text-gray-800">
+            🚫 Opt-out
+          </Link>
           <Link href="/dashboard/settings" className="text-sm text-gray-500 hover:text-gray-800">
             Ajustes
           </Link>

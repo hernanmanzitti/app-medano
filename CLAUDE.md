@@ -41,15 +41,19 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Auth emails: fix de URLs localhost → NEXT_PUBLIC_APP_URL, ruta /auth/callback, recuperación de contraseña (/reset-password)
 - [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
 - [x] Variables de entorno Twilio cargadas en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID)
-- [x] Template de reseña creado en Twilio Content Template Builder (pendiente aprobación Meta)
+- [x] Template de reseña creado en Twilio Content Template Builder — pendiente aprobación Meta. Requiere WhatsApp Sender registrado primero. Bloqueado por Twilio Support (ticket abierto, mismo proceso que subaccounts)
 - [x] Ticket de soporte resuelto — cuenta Twilio desbloqueada (subaccounts + long code numbers) el 8 abril 2026
-- [ ] Integración Twilio: connect-waba/route.ts (crear subaccount + comprar número)
+- [x] Subaccount COBA creado en Twilio Console — SID y Auth Token guardados
+- [x] Número canadiense +1 365 906 3072 comprado en subaccount COBA ($1.15/mes)
+- [x] SQL de waba_connections ejecutado — subaccount COBA registrado (org_id: 48f92c4c-31db-4ed1-911e-40e96eafb59c, phone: +13659063072)
+- [ ] Registro de WhatsApp Sender en Twilio — bloqueado, ticket de soporte abierto
+- [x] Integración Twilio: connect-waba/route.ts reescrito para Twilio (valida credenciales subaccount + upsert en waba_connections)
 - [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
 - [x] Fase 7 (parte 1): API de envío múltiple — send/route.ts soporta batch via contacts[] (compatibilidad individual mantenida)
 - [x] Fase 7 (parte 2): UI de envío múltiple — agregar contactos de a uno, lista previa, envío batch
 - [x] Fase 7 (parte 3): Envíos programados — descartado para esta versión
-- [ ] Fase 8: Opt-out / Blacklist
+- [x] Fase 8: Opt-out / Blacklist — tabla blacklist creada, API GET/POST/DELETE, verificación en send/route.ts, detección automática en webhook, UI en /dashboard/blacklist
 - [ ] Fase 9: Derivación de respuestas (reply forwarding)
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
@@ -63,8 +67,11 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - **Onboarding MVP — acceso socio en Business Manager**: el cliente agrega el BM de Medano como socio en su Meta Business Manager (business.facebook.com → Configuración → Socios). Medano accede al WABA del cliente y lo registra en un subaccount de Twilio. Sin Embedded Signup, sin Tech Provider Program.
 - **Onboarding futuro — Embedded Signup automático**: cuando Medano complete el proceso de Tech Provider con Meta (4-8 semanas, iniciar en paralelo), el onboarding pasará a ser un flow embebido en la app.
 - **Número dedicado por cliente**: Medano compra un número nuevo en Twilio ($1.50/mes) al onboardear cada cliente. El cliente no toca su WhatsApp personal ni de negocio.
+- **Subaccount de Twilio por cliente desde el piloto** (no solo en escala): por aislamiento de reputación y simplicidad futura.
 - Un WABA por cliente (aislamiento de reputación y límites de envío)
 - Template aprobado a nivel de cuenta Medano, no por cliente
+- **Tech Provider de Meta NO es necesario** para el modelo Twilio del piloto. Twilio ya tiene la relación con Meta — Medano no necesita ninguna aprobación especial.
+- **El BM del cliente no se necesita en ningún momento.** No hay API keys de clientes. Todo vive bajo las credenciales de Twilio (Account SID + Auth Token).
 
 ### Pricing
 - Starter: $13/mes — 100 mensajes
@@ -447,13 +454,14 @@ Cliente (negocio) → Panel Medano → API Twilio → Número canadiense de Meda
 - Sin este desbloqueo no se puede hacer el onboarding real de clientes
 
 ### Próximos pasos — Twilio desbloqueado ✅ (listo para ejecutar)
-1. Crear subaccount "Medano" en Twilio Console
-2. Comprar número canadiense (+1, ~$1.15/mes)
-3. Registrar número como WhatsApp sender en Twilio Console
-4. Configurar webhook: `https://appmedano.netlify.app/api/webhooks/twilio`
-5. Insertar registro en `waba_connections` en Supabase
-6. Desactivar `NEXT_PUBLIC_WABA_MOCK` en Netlify
-7. Hacer envío de prueba real con las empresas de los hermanos de Hernán
+1. Crear subaccount "Cliente 1" en Twilio Console
+2. Dentro del subaccount, comprar número canadiense (+1, ~$1.15/mes)
+3. Registrar número como WhatsApp Sender en Twilio Console
+4. Someter template `medano_review_request` a aprobación Meta desde el sender creado
+5. Configurar webhook: `https://appmedano.netlify.app/api/webhooks/twilio`
+6. ~~Insertar registro en `waba_connections` en Supabase~~ ✅ ejecutado (subaccount COBA, org_id: 48f92c4c-31db-4ed1-911e-40e96eafb59c, phone: +13659063072)
+7. Desactivar `NEXT_PUBLIC_WABA_MOCK` en Netlify
+8. Hacer envío de prueba real
 
 ### Siguiente fase de desarrollo (post-piloto)
 - Fase 6: Onboarding wizard guiado (reemplaza onboarding actual de 2 pasos)
