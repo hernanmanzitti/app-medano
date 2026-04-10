@@ -54,7 +54,8 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 7 (parte 2): UI de envío múltiple — agregar contactos de a uno, lista previa, envío batch
 - [x] Fase 7 (parte 3): Envíos programados — descartado para esta versión
 - [x] Fase 8: Opt-out / Blacklist — tabla blacklist creada, API GET/POST/DELETE, verificación en send/route.ts, detección automática en webhook, UI en /dashboard/blacklist
-- [ ] Fase 9: Derivación de respuestas (reply forwarding)
+- [x] Fase 9: Derivación de respuestas — forwarding_number en organizations, reenvío en webhook, fallback TwiML con nombre de org, sección en /dashboard/settings
+- [x] Diseño del dashboard actualizado con identidad de marca Médano — paleta navy/royal/mid/light, tipografías DM Sans + Barlow Condensed, tokens CSS en globals.css
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
