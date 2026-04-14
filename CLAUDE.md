@@ -64,6 +64,9 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Sidebar de navegación implementado — logo Médano + nombre de org, links Inicio/Opt-out/Ajustes, logout, responsive con hamburguesa en mobile
 - [x] Layout del dashboard refactorizado — eliminado header anterior, sidebar reemplaza navegación superior
 - [x] Páginas de blacklist y settings sin botón Volver — navegación via sidebar
+- [x] Logo Médano agregado al sidebar — archivo: public/logo-medano.png, commit 2f39a48. Reemplaza el texto "médano" en desktop (120×40px) y mobile (90×30px)
+- [x] Texto descriptivo de "Derivación de respuestas" en settings corregido — eliminado duplicado, texto actualizado
+- [x] Sección "Link de reseña" renombrada a "Sede central" en settings con descripción actualizada
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
@@ -587,6 +590,7 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - Join de Supabase con RLS activo no trae datos relacionados aunque el join funcione a nivel DB → solución: hacer join en JS usando el array de locations ya fetcheado
 - Los inserts en `message_logs` y las queries del dashboard deben usar service role key (`SUPABASE_SERVICE_ROLE_KEY`) para evitar restricciones de RLS
 - Columna `wam_id` faltaba en producción — aplicar con `ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS wam_id TEXT` en SQL Editor si la migración no se aplicó via CLI
+- El campo orgName que muestra el sidebar viene de `organizations.name` en Supabase — si aparece un valor incorrecto, corregirlo directamente en la DB desde el Table Editor de Supabase
 
 ## Skills de Claude.ai (proyecto)
 
