@@ -30,7 +30,7 @@ export default async function SettingsPage() {
       <section>
         <h2 className="text-base font-semibold text-[#00246b] mb-1">Link de reseña</h2>
         <p className="text-sm text-[#646caa] mb-4">
-          Se usa en los mensajes cuando no hay una sucursal seleccionada.
+          Ingresá el link de Google de tu negocio para que tus clientes puedan dejar una reseña. Si tenés una sola sucursal, este es el link que se usará en todos los mensajes.
         </p>
         <OrgReviewLinkForm initialReviewLink={org.review_link} />
       </section>
