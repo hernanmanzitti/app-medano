@@ -50,6 +50,8 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Registro de WhatsApp Sender completado — 13 abril 2026. Display name: Centro de Ojos Buenos Aires. WhatsApp Business Account ID: 1474369367428056. Meta Business Manager ID: 1186141222354766. Status: Offline (pendiente activación Meta)
 - [x] Webhook configurado en número +1 365 906 3072 — URL: https://appmedano.netlify.app/api/webhooks/twilio, método POST
 - [x] StatusCallback agregado en send/route.ts — Twilio notificará delivered/read/failed al webhook
+- [x] Confirmación de Twilio Support (ticket #26222642, 14 abril 2026): Sender +13659063072 registrado y activo. Límite Meta: 250 conversaciones únicas/24hs, máximo 2 números por WABA. Suficiente para el piloto.
+- [ ] Template medano_review_request pendiente aprobación Meta — sin aprobación no se pueden enviar mensajes business-initiated. Mock activado para testing mientras tanto.
 - [x] Integración Twilio: connect-waba/route.ts reescrito para Twilio (valida credenciales subaccount + upsert en waba_connections)
 - [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -559,6 +561,9 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - TWILIO_TEMPLATE_SID en Netlify debe actualizarse al nuevo SID solo después de que Meta apruebe el template
 - StatusCallback es obligatorio en el POST a Twilio Messages.json para recibir actualizaciones de estado (delivered/read/failed) en el webhook
 - El Embedded Signup de Meta está integrado dentro de Twilio Console (Messaging → WhatsApp Senders → Add Sender) — no hace falta ser Tech Provider para usarlo manualmente
+- El límite de 2 números es por WABA, no por cuenta Twilio — cada cliente nuevo tiene su propio WABA, por lo que no hay límite práctico para escalar
+- Sin template aprobado no es posible enviar mensajes business-initiated (Medano inicia la conversación). El mock no envía mensajes reales, solo simula el flujo interno
+- Para probar el SaaS mientras se espera aprobación del template, usar NEXT_PUBLIC_WABA_MOCK=true en Netlify
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 
