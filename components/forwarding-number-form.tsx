@@ -33,9 +33,6 @@ export function ForwardingNumberForm({ initialForwardingNumber }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <p className="text-sm text-[#646caa]">
-        Cuando un cliente responda tu mensaje, te lo reenviamos al número que ingreses aquí. Incluí el código de país (ej: +5491155441234).
-      </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-3">
         <input

@@ -50,7 +50,7 @@ export default async function SettingsPage() {
       <section>
         <h2 className="text-base font-semibold text-[#00246b] mb-1">Derivación de respuestas</h2>
         <p className="text-sm text-[#646caa] mb-4">
-          Cuando un cliente responda tu mensaje, te lo reenviamos a este número. Incluí el código de país (ej: +5491155441234). Dejalo vacío para desactivar.
+          Ingresá un número de WhatsApp de tu empresa que usás con frecuencia para atender clientes. Lo usaremos en caso de que un cliente, en lugar de hacer click para dejar una reseña, se equivoque y responda al mensaje. Le diremos que te envíe un mensaje al teléfono que ingreses aquí.
         </p>
         <ForwardingNumberForm initialForwardingNumber={org.forwarding_number ?? null} />
       </section>
