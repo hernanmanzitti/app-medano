@@ -41,12 +41,13 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Auth emails: fix de URLs localhost → NEXT_PUBLIC_APP_URL, ruta /auth/callback, recuperación de contraseña (/reset-password)
 - [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
 - [x] Variables de entorno Twilio cargadas en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID)
-- [x] Template de reseña creado en Twilio Content Template Builder — pendiente aprobación Meta. Requiere WhatsApp Sender registrado primero. Bloqueado por Twilio Support (ticket abierto, mismo proceso que subaccounts)
+- [x] Template medano_review_request recreado en subaccount COBA — SID: HX6f8e742a9ad31e8fd67f0d2db2b690ad — submitted para aprobación Meta el 13 abril 2026 (hasta 48hs). Tipo: Text, categoría: Marketing, idioma: Spanish (ARG). El SID anterior (HX4abd93d52c5db977ab40042080028aa2) era de la cuenta master y quedó obsoleto.
+- [ ] Cuando Meta apruebe el template: actualizar TWILIO_TEMPLATE_SID en Netlify con HX6f8e742a9ad31e8fd67f0d2db2b690ad
 - [x] Ticket de soporte resuelto — cuenta Twilio desbloqueada (subaccounts + long code numbers) el 8 abril 2026
 - [x] Subaccount COBA creado en Twilio Console — SID y Auth Token guardados
 - [x] Número canadiense +1 365 906 3072 comprado en subaccount COBA ($1.15/mes)
 - [x] SQL de waba_connections ejecutado — subaccount COBA registrado (org_id: 48f92c4c-31db-4ed1-911e-40e96eafb59c, phone: +13659063072)
-- [ ] Registro de WhatsApp Sender en Twilio — bloqueado, ticket de soporte abierto
+- [x] Registro de WhatsApp Sender en Twilio — ✅ completado 13 abril 2026. WhatsApp Business Account ID: 1474369367428056 / Meta Business Manager ID: 1186141222354786 / Display name: Centro de Ojos Buenos Aires / Status: Offline (pendiente activación Meta, normal en primeras horas)
 - [x] Integración Twilio: connect-waba/route.ts reescrito para Twilio (valida credenciales subaccount + upsert en waba_connections)
 - [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -56,6 +57,9 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 8: Opt-out / Blacklist — tabla blacklist creada, API GET/POST/DELETE, verificación en send/route.ts, detección automática en webhook, UI en /dashboard/blacklist
 - [x] Fase 9: Derivación de respuestas — forwarding_number en organizations, reenvío en webhook, fallback TwiML con nombre de org, sección en /dashboard/settings
 - [x] Diseño del dashboard actualizado con identidad de marca Médano — paleta navy/royal/mid/light, tipografías DM Sans + Barlow Condensed, tokens CSS en globals.css
+- [x] Sidebar de navegación implementado — logo Médano + nombre de org, links Inicio/Opt-out/Ajustes, logout, responsive con hamburguesa en mobile
+- [x] Layout del dashboard refactorizado — eliminado header anterior, sidebar reemplaza navegación superior
+- [x] Páginas de blacklist y settings sin botón Volver — navegación via sidebar
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
@@ -457,7 +461,7 @@ Cliente (negocio) → Panel Medano → API Twilio → Número canadiense de Meda
 ### Próximos pasos — Twilio desbloqueado ✅ (listo para ejecutar)
 1. Crear subaccount "Cliente 1" en Twilio Console
 2. Dentro del subaccount, comprar número canadiense (+1, ~$1.15/mes)
-3. Registrar número como WhatsApp Sender en Twilio Console
+3. ~~Registrar número como WhatsApp Sender en Twilio Console~~ ✅ completado 13 abril 2026 — Display name: Centro de Ojos Buenos Aires / WhatsApp Business Account ID: 1474369367428056 / Meta Business Manager ID: 1186141222354766
 4. Someter template `medano_review_request` a aprobación Meta desde el sender creado
 5. Configurar webhook: `https://appmedano.netlify.app/api/webhooks/twilio`
 6. ~~Insertar registro en `waba_connections` en Supabase~~ ✅ ejecutado (subaccount COBA, org_id: 48f92c4c-31db-4ed1-911e-40e96eafb59c, phone: +13659063072)
@@ -502,6 +506,27 @@ Cliente (negocio) → Panel Medano → API Twilio → Número canadiense de Meda
 - **Tech Provider:** categoría de Meta para ISVs que quieren automatizar onboarding via Embedded Signup
 - **Embedded Signup:** popup de Meta que el cliente completa para conectar su WABA. Requiere ser Tech Provider
 - Sin Tech Provider: onboarding manual (Hernán configura cada cliente a mano) — viable para piloto
+
+## Modelo de onboarding WABA — decisión 13 abril 2026
+
+### Modelo actual (piloto manual)
+1. Hernán pide acceso como admin al BM del cliente (business.facebook.com)
+2. Dentro del BM del cliente, Hernán entra a Twilio Console → Messaging → WhatsApp Senders
+3. Click en "Add Sender" → se abre el Embedded Signup de Meta integrado en Twilio
+4. Seleccionar el BM del cliente, crear nueva cuenta de WhatsApp Business
+5. Elegir "Agregar un número nuevo" (NO "Usar solo un nombre visible" — ese genera número virtual de Meta)
+6. Ingresar el número comprado en Twilio (ej: +1 365 906 3072) — requiere verificación via código SMS
+7. El código de verificación llega al número de Twilio → buscarlo en Twilio Console → Monitor → Logs
+
+---
+
+## Aprendizajes Twilio — sesión 13 abril 2026
+
+- El template debe crearse en el **subaccount del cliente**, no en la cuenta master — los templates no son compartidos entre cuentas
+- El SID del template cambia al recrearlo en otro subaccount — siempre verificar qué SID usar en TWILIO_TEMPLATE_SID
+- Para el botón Call-to-Action con URL variable en WhatsApp, Twilio requiere una URL base fija + variable al final (ej: `https://dominio.com/{{1}}`). Como los review links de los clientes son URLs completas variables, no encaja en ese formato — solución: usar template de texto (twilio/text) con el link inline en el body
+- El template de reseñas es clasificado por Meta como **Marketing** (no Utility) — no es reclasificable. Costo: $0.0618/msg en Argentina
+- El TWILIO_TEMPLATE_SID en Netlify debe actualizarse al nuevo SID una vez que Meta apruebe el template (no antes)
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 
