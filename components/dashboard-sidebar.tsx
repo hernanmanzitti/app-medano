@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -36,12 +37,13 @@ export function DashboardSidebar({ orgName, userEmail }: Props) {
       <div className="flex flex-col h-full">
         {/* Logo + org */}
         <div className="px-6 pt-6 pb-5">
-          <div
-            className="text-[#646caa] leading-none"
-            style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.75rem' }}
-          >
-            médano
-          </div>
+          <Image
+            src="/logo-medano.png"
+            alt="Médano"
+            width={120}
+            height={40}
+            className="object-contain"
+          />
           <div className="text-[#b4b7d9] text-xs mt-1.5 truncate">{orgName}</div>
         </div>
 
@@ -89,12 +91,13 @@ export function DashboardSidebar({ orgName, userEmail }: Props) {
 
       {/* ── Mobile top bar ──────────────────────────────────────────────── */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[#00246b] px-4 py-3 flex items-center justify-between">
-        <span
-          className="text-[#646caa] leading-none"
-          style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.25rem' }}
-        >
-          médano
-        </span>
+        <Image
+          src="/logo-medano.png"
+          alt="Médano"
+          width={90}
+          height={30}
+          className="object-contain"
+        />
         <span className="text-[#b4b7d9] text-sm truncate max-w-[140px]">{orgName}</span>
         <button
           onClick={() => setMobileOpen(true)}
