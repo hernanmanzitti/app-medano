@@ -59,6 +59,7 @@ async function dispatchToTwilio(
       '2': orgName,
       '3': reviewLink,
     }),
+    StatusCallback: (process.env.NEXT_PUBLIC_APP_URL ?? '') + '/api/webhooks/twilio',
   })
 
   const res = await fetch(twilioUrl, {
