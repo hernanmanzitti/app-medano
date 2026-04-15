@@ -446,6 +446,36 @@ created_at TIMESTAMPTZ DEFAULT NOW()
 
 ---
 
+## Módulo: Perfil de WhatsApp Business (post-piloto — pendiente)
+
+> **Timing:** implementar una vez finalizado el piloto con el primer cliente.
+
+Nueva sección en `/dashboard/settings`: **"Perfil de WhatsApp"**
+
+Permite al cliente editar su perfil de WhatsApp Business desde el dashboard de Medano, sin tocar Twilio ni Meta. Los cambios se aplican vía Twilio WhatsApp Profile API usando las credenciales del subaccount del cliente (`twilio_subaccount_sid` en `waba_connections`).
+
+**Campos disponibles (según Twilio WhatsApp Profile API):**
+- Logo / foto de perfil — JPG o PNG, 640×640px o mayor, ratio cuadrado
+- Dirección del negocio
+- Sitio web principal
+- Sitio web adicional
+- Email de contacto
+- Vertical / categoría (selector: Automotive, Beauty, Education, etc.)
+- Descripción del negocio (máx 512 caracteres)
+- Profile about (máx 139 caracteres)
+
+**Display name:** no es editable desde Twilio ni desde el dashboard. Se define al registrar el WhatsApp Sender y no se puede modificar por UI.
+
+**Logo — proceso asistido:**
+> Para asegurar la mejor calidad y que el logo quede correctamente configurado, el cliente debe enviarlo a hola@medano.co. El equipo de Medano lo carga manualmente.
+
+**Implementación:**
+- API route: `api/settings/whatsapp-profile/route.ts` — GET + PATCH
+- Lee `twilio_subaccount_sid` de `waba_connections` por `org_id`
+- Cada cliente edita solo su propio perfil — aislamiento nativo por subaccount
+
+---
+
 ## Schema de DB completo
 
 ```sql
