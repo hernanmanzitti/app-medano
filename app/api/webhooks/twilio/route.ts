@@ -32,19 +32,34 @@ export async function POST(request: Request) {
   const rawBody = await request.text()
 
   const isMock = process.env.NEXT_PUBLIC_WABA_MOCK === 'true'
+
+  const signature = request.headers.get('X-Twilio-Signature') ?? ''
+  const url = (process.env.NEXT_PUBLIC_APP_URL ?? '') + '/api/webhooks/twilio'
+  const params: Record<string, string> = {}
+  new URLSearchParams(rawBody).forEach((value, key) => { params[key] = value })
+
+  console.log('Webhook Twilio — request recibido', {
+    isMock,
+    url,
+    hasSignature: !!signature,
+    hasSubaccountToken: !!process.env.TWILIO_SUBACCOUNT_AUTH_TOKEN,
+    hasMasterToken: !!process.env.TWILIO_AUTH_TOKEN,
+    messageStatus: params['MessageStatus'] ?? null,
+    messageSid: params['MessageSid'] ?? null,
+    from: params['From'] ?? null,
+    to: params['To'] ?? null,
+  })
+
   if (!isMock) {
-    const signature = request.headers.get('X-Twilio-Signature') ?? ''
-    const url = (process.env.NEXT_PUBLIC_APP_URL ?? '') + '/api/webhooks/twilio'
-
-    const params: Record<string, string> = {}
-    new URLSearchParams(rawBody).forEach((value, key) => {
-      params[key] = value
-    })
-
     const tokensToTry = [
-      process.env.TWILIO_AUTH_TOKEN ?? '',
       process.env.TWILIO_SUBACCOUNT_AUTH_TOKEN ?? '',
+      process.env.TWILIO_AUTH_TOKEN ?? '',
     ].filter(Boolean)
+
+    if (tokensToTry.length === 0) {
+      console.error('Webhook Twilio — no hay tokens configurados para validar firma')
+      return NextResponse.json({ error: 'Misconfigured' }, { status: 500 })
+    }
 
     const signatureValid = tokensToTry.some((token) => {
       const { valid } = validateTwilioSignature(token, signature, url, params)
@@ -53,7 +68,7 @@ export async function POST(request: Request) {
 
     if (!signatureValid) {
       const { computed, sortedParams } = validateTwilioSignature(tokensToTry[0], signature, url, params)
-      console.log('Webhook Twilio — firma inválida con todos los tokens disponibles.', {
+      console.error('Webhook Twilio — firma inválida con todos los tokens disponibles.', {
         url,
         sortedParams,
         computedSignature: computed,
