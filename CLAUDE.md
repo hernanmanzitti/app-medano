@@ -18,7 +18,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_APP_URL=                    # URL base de la app (ej: https://app.medano.co)
-NEXT_PUBLIC_WABA_MOCK=true              # Activar mock de WABA en desarrollo (omitir en prod)
+NEXT_PUBLIC_WABA_MOCK=true              # Activar mock de WABA en desarrollo (omitir en prod — eliminado de Netlify el 15 abril 2026)
 
 # Twilio
 TWILIO_ACCOUNT_SID=                     # Master account SID
@@ -42,7 +42,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
 - [x] Variables de entorno Twilio cargadas en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID)
 - [x] Template medano_review_request recreado en subaccount COBA — SID: HX6f8e742a9ad31e8fd67f0d2db2b690ad — submitted para aprobación Meta el 13 abril 2026. Tipo: Text, categoría: Marketing, idioma: Spanish (ARG). SID anterior (HX4abd93d52c5db977ab40042080028aa2) era de cuenta master, quedó obsoleto.
-- [ ] Cuando Meta apruebe el template: actualizar TWILIO_TEMPLATE_SID en Netlify con HX6f8e742a9ad31e8fd67f0d2db2b690ad y desactivar NEXT_PUBLIC_WABA_MOCK
+- [x] Template aprobado por Meta — TWILIO_TEMPLATE_SID actualizado a HX6f8e742a9ad31e8fd67f0d2db2b690ad en Netlify, NEXT_PUBLIC_WABA_MOCK eliminado. Envío real end-to-end probado el 15 abril 2026.
 - [x] Ticket de soporte resuelto — cuenta Twilio desbloqueada (subaccounts + long code numbers) el 8 abril 2026
 - [x] Subaccount COBA creado en Twilio Console — SID y Auth Token guardados
 - [x] Número canadiense +1 365 906 3072 comprado en subaccount COBA ($1.15/mes)
@@ -51,7 +51,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Webhook configurado en número +1 365 906 3072 — URL: https://appmedano.netlify.app/api/webhooks/twilio, método POST
 - [x] StatusCallback agregado en send/route.ts — Twilio notificará delivered/read/failed al webhook
 - [x] Confirmación de Twilio Support (ticket #26222642, 14 abril 2026): Sender +13659063072 registrado y activo. Límite Meta: 250 conversaciones únicas/24hs, máximo 2 números por WABA. Suficiente para el piloto.
-- [ ] Template medano_review_request pendiente aprobación Meta — sin aprobación no se pueden enviar mensajes business-initiated. Mock activado para testing mientras tanto.
+- [x] Template medano_review_request aprobado por Meta — envíos business-initiated activos desde el 15 abril 2026.
 - [x] Integración Twilio: connect-waba/route.ts reescrito para Twilio (valida credenciales subaccount + upsert en waba_connections)
 - [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -567,6 +567,11 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - El límite de 2 números es por WABA, no por cuenta Twilio — cada cliente nuevo tiene su propio WABA, por lo que no hay límite práctico para escalar
 - Sin template aprobado no es posible enviar mensajes business-initiated (Medano inicia la conversación). El mock no envía mensajes reales, solo simula el flujo interno
 - Para probar el SaaS mientras se espera aprobación del template, usar NEXT_PUBLIC_WABA_MOCK=true en Netlify
+
+## Aprendizajes técnicos — sesión 15 abril 2026
+
+- **Mock check incompleto en send/route.ts**: `isMock` solo chequeaba `api_key.startsWith('mock_')` e ignoraba `NEXT_PUBLIC_WABA_MOCK`. Con la variable en `true` en Netlify, el envío igual iba a Twilio. Fix: `const isMock = process.env.NEXT_PUBLIC_WABA_MOCK === 'true' || waba.api_key.startsWith('mock_')`
+- **Webhook status update con cliente incorrecto**: el update de `delivered/read/failed` en `webhooks/twilio/route.ts` usaba `createClient()` (auth con cookies). En un webhook de Twilio no hay sesión de usuario → con RLS activo el UPDATE no actualizaba ninguna fila (falla silenciosa). Fix: usar `getServiceClient()` que bypasea RLS. Regla general: cualquier operación de escritura en API Routes sin sesión de usuario debe usar service role key.
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 

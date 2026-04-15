@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
 
@@ -35,7 +34,6 @@ export async function POST(request: Request) {
   const isMock = process.env.NEXT_PUBLIC_WABA_MOCK === 'true'
   if (!isMock) {
     const signature = request.headers.get('X-Twilio-Signature') ?? ''
-    const authToken = process.env.TWILIO_AUTH_TOKEN ?? ''
     const url = (process.env.NEXT_PUBLIC_APP_URL ?? '') + '/api/webhooks/twilio'
 
     const params: Record<string, string> = {}
@@ -43,9 +41,19 @@ export async function POST(request: Request) {
       params[key] = value
     })
 
-    const { valid, computed, sortedParams } = validateTwilioSignature(authToken, signature, url, params)
-    if (!valid) {
-      console.log('Webhook Twilio — firma inválida.', {
+    const tokensToTry = [
+      process.env.TWILIO_AUTH_TOKEN ?? '',
+      process.env.TWILIO_SUBACCOUNT_AUTH_TOKEN ?? '',
+    ].filter(Boolean)
+
+    const signatureValid = tokensToTry.some((token) => {
+      const { valid } = validateTwilioSignature(token, signature, url, params)
+      return valid
+    })
+
+    if (!signatureValid) {
+      const { computed, sortedParams } = validateTwilioSignature(tokensToTry[0], signature, url, params)
+      console.log('Webhook Twilio — firma inválida con todos los tokens disponibles.', {
         url,
         sortedParams,
         computedSignature: computed,
@@ -201,9 +209,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  const supabase = await createClient()
-
-  const { error } = await supabase
+  const { error } = await getServiceClient()
     .from('message_logs')
     .update({ status: mappedStatus, wam_id: messageSid })
     .eq('wam_id', messageSid)

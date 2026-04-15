@@ -145,7 +145,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No hay una WABA activa conectada' }, { status: 422 })
   }
 
-  const isMock = waba.api_key.startsWith('mock_')
+  const isMock = process.env.NEXT_PUBLIC_WABA_MOCK === 'true' || waba.api_key.startsWith('mock_')
 
   if (!isMock && (!waba.twilio_subaccount_sid || !waba.phone_number)) {
     return NextResponse.json({ error: 'WABA no configurada correctamente' }, { status: 422 })
