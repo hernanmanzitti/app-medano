@@ -75,6 +75,34 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
 - [ ] Fase 13: Billing — prepago de créditos, corte automático por saldo
 
+---
+
+## Onboarding de nuevo cliente (checklist operativo)
+
+### Lo que está configurado una sola vez y NO se repite
+- Template `medano_review_request` aprobado por Meta (SID: HX6f8e742a9ad31e8fd67f0d2db2b690ad)
+- Variables de entorno en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID, TWILIO_SUBACCOUNT_AUTH_TOKEN, NEXT_PUBLIC_APP_URL, etc.)
+- Supabase configurado (DB, Auth, RLS, SMTP con Resend)
+- URL base del webhook: `https://appmedano.netlify.app/api/webhooks/twilio`
+
+### Lo que se repite por cada cliente nuevo (~25–30 min)
+
+1. **Crear subaccount en Twilio Console** — anotar SID y Auth Token
+2. **Comprar número canadiense** en el subaccount (~$1.15/mes) — Phone Numbers → Buy a Number → Canada
+3. **Registrar WhatsApp Sender** en Twilio — Messaging → WhatsApp Senders → Add Sender → Embedded Signup de Meta:
+   - Elegir "Agregar número nuevo" (NO "Usar solo un nombre visible")
+   - Ingresar el número comprado, verificar con código SMS
+   - El código llega al número de Twilio → buscarlo en Twilio Console → Monitor → Logs → Messages
+4. **Configurar webhook inbound** en el sender: Messaging → WhatsApp Senders → el número → "Webhook URL for incoming messages" → `https://appmedano.netlify.app/api/webhooks/twilio`
+5. **Insertar registro en `waba_connections`** en Supabase con `org_id`, `twilio_subaccount_sid`, `phone_number` (formato `+1XXXXXXXXXX`), `status = 'active'`
+6. **Crear usuario** en app.medano.co para el cliente (Supabase → Auth → Users → Invite)
+
+### Próxima fase de desarrollo — tutoriales
+- **Tutorial interno Medano**: paso a paso para onboardear un cliente nuevo (basado en el checklist de arriba)
+- **Tutorial cliente**: cómo usar el dashboard (enviar solicitudes, sucursales, historial, opt-out, derivación)
+
+---
+
 ## Decisiones tomadas
 
 ### BSP y onboarding
