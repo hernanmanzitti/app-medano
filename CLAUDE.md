@@ -42,7 +42,8 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] SMTP: Resend configurado en Supabase con dominio medano.co (sender: noreply@medano.co)
 - [x] Variables de entorno Twilio cargadas en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID)
 - [x] Template medano_review_request recreado en subaccount COBA — SID: HX6f8e742a9ad31e8fd67f0d2db2b690ad — submitted para aprobación Meta el 13 abril 2026. Tipo: Text, categoría: Marketing, idioma: Spanish (ARG). SID anterior (HX4abd93d52c5db977ab40042080028aa2) era de cuenta master, quedó obsoleto.
-- [x] Template aprobado por Meta — TWILIO_TEMPLATE_SID actualizado a HX6f8e742a9ad31e8fd67f0d2db2b690ad en Netlify, NEXT_PUBLIC_WABA_MOCK eliminado. Envío real end-to-end probado el 15 abril 2026.
+- [x] Template aprobado por Meta — TWILIO_TEMPLATE_SID actualizado a HX6f8e742a9ad31e8fd67f0d2db2b690ad en Netlify, NEXT_PUBLIC_WABA_MOCK eliminado. Envío real end-to-end funcionando: mensaje entregado y status actualizado correctamente en message_logs (15 abril 2026).
+- [x] TWILIO_SUBACCOUNT_AUTH_TOKEN agregado en Netlify — auth token del subaccount COBA para validación de firma en webhook.
 - [x] Ticket de soporte resuelto — cuenta Twilio desbloqueada (subaccounts + long code numbers) el 8 abril 2026
 - [x] Subaccount COBA creado en Twilio Console — SID y Auth Token guardados
 - [x] Número canadiense +1 365 906 3072 comprado en subaccount COBA ($1.15/mes)
@@ -572,6 +573,7 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 
 - **Mock check incompleto en send/route.ts**: `isMock` solo chequeaba `api_key.startsWith('mock_')` e ignoraba `NEXT_PUBLIC_WABA_MOCK`. Con la variable en `true` en Netlify, el envío igual iba a Twilio. Fix: `const isMock = process.env.NEXT_PUBLIC_WABA_MOCK === 'true' || waba.api_key.startsWith('mock_')`
 - **Webhook status update con cliente incorrecto**: el update de `delivered/read/failed` en `webhooks/twilio/route.ts` usaba `createClient()` (auth con cookies). En un webhook de Twilio no hay sesión de usuario → con RLS activo el UPDATE no actualizaba ninguna fila (falla silenciosa). Fix: usar `getServiceClient()` que bypasea RLS. Regla general: cualquier operación de escritura en API Routes sin sesión de usuario debe usar service role key.
+- **Validación de firma Twilio con token incorrecto (403)**: el webhook validaba con `TWILIO_AUTH_TOKEN` (master account) pero Twilio firma los StatusCallback y los mensajes entrantes con el auth token del **subaccount** que los origina. Fix: array `tokensToTry = [TWILIO_AUTH_TOKEN, TWILIO_SUBACCOUNT_AUTH_TOKEN]`, se valida con `.some()` — si cualquiera matchea se acepta el request. Variable `TWILIO_SUBACCOUNT_AUTH_TOKEN` agregada en Netlify. Cuando haya múltiples subaccounts habrá que buscar el token por número destino en `waba_connections`.
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 
