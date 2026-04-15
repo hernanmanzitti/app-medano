@@ -111,9 +111,11 @@ export async function POST(request: Request) {
     const fromPhone = fromNumber.replace('whatsapp:+', '')
     const toPhone = toNumber.replace('whatsapp:', '')
 
+    console.log('Webhook — inbound message:', { fromPhone, toPhone, body: incomingBody })
+
     const serviceClient = getServiceClient()
 
-    const { data: waba } = await serviceClient
+    const { data: waba, error: wabaError } = await serviceClient
       .from('waba_connections')
       .select('org_id, twilio_subaccount_sid, phone_number')
       .eq('phone_number', toPhone)
@@ -121,14 +123,20 @@ export async function POST(request: Request) {
       .single()
 
     if (!waba) {
+      console.error('Webhook — waba no encontrada para toPhone:', toPhone, wabaError)
       return NextResponse.json({ ok: true })
     }
 
-    const { data: org } = await serviceClient
+    const { data: org, error: orgError } = await serviceClient
       .from('organizations')
       .select('id, name, forwarding_number')
       .eq('id', waba.org_id)
       .single()
+
+    if (!org) {
+      console.error('Webhook — org no encontrada para org_id:', waba.org_id, orgError)
+      return NextResponse.json({ ok: true })
+    }
 
     // Marcar el message_log más reciente de ese número como reply_received
     const { data: recentLog } = await serviceClient
@@ -147,10 +155,12 @@ export async function POST(request: Request) {
         .eq('id', recentLog.id)
     }
 
-    if (org?.forwarding_number) {
+    if (org.forwarding_number) {
       const accountSid = process.env.TWILIO_ACCOUNT_SID!
       const authToken = process.env.TWILIO_AUTH_TOKEN!
-      const forwardMessage = `📩 Respuesta de +${fromPhone} a tu solicitud de reseña:\n\n${incomingBody}\n\n— ${org.name}`
+      const forwardMessage = `Mensaje de +${fromPhone} para ${org.name}: ${incomingBody}`
+
+      console.log('Webhook — reenviando a:', org.forwarding_number, '| mensaje:', forwardMessage)
 
       const forwardParams = new URLSearchParams({
         To: `whatsapp:${org.forwarding_number}`,
@@ -173,6 +183,8 @@ export async function POST(request: Request) {
         if (!res.ok) {
           const detail = await res.text()
           console.error('Webhook — error reenviando respuesta:', detail)
+        } else {
+          console.log('Webhook — reenvío OK')
         }
       } catch (err) {
         console.error('Webhook — excepción al reenviar:', err)
@@ -182,8 +194,8 @@ export async function POST(request: Request) {
     }
 
     // Sin forwarding_number — responder al usuario final con TwiML
-    const orgName = org?.name ?? 'nosotros'
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>Gracias por tu mensaje. Para consultas, escribinos directamente a ${orgName}.</Message></Response>`
+    console.log('Webhook — sin forwarding_number, respondiendo con TwiML a:', fromPhone)
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>Gracias por tu mensaje. Para consultas, escribinos directamente a ${org.name}.</Message></Response>`
     return new Response(twiml, {
       status: 200,
       headers: { 'Content-Type': 'text/xml' },
