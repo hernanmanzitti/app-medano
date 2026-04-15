@@ -61,6 +61,8 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 7 (parte 3): Envíos programados — descartado para esta versión
 - [x] Fase 8: Opt-out / Blacklist — tabla blacklist creada, API GET/POST/DELETE, verificación en send/route.ts, detección automática en webhook, UI en /dashboard/blacklist
 - [x] Fase 9: Derivación de respuestas — forwarding_number en organizations, reenvío en webhook, fallback TwiML con nombre de org, sección en /dashboard/settings
+- [x] Webhook fix: mensajes inbound configurados en Twilio Console (Phone Numbers → Active Numbers → número → Messaging Configuration → "A message comes in")
+- [x] Derivación de respuestas: formato del mensaje de reenvío corregido ("Mensaje de +[número] para [org]: [texto]") + logs de debugging agregados en todo el path inbound
 - [x] Diseño del dashboard actualizado con identidad de marca Médano — paleta navy/royal/mid/light, tipografías DM Sans + Barlow Condensed, tokens CSS en globals.css
 - [x] Sidebar de navegación implementado — logo Médano + nombre de org, links Inicio/Opt-out/Ajustes, logout, responsive con hamburguesa en mobile
 - [x] Layout del dashboard refactorizado — eliminado header anterior, sidebar reemplaza navegación superior
@@ -573,7 +575,11 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 
 - **Mock check incompleto en send/route.ts**: `isMock` solo chequeaba `api_key.startsWith('mock_')` e ignoraba `NEXT_PUBLIC_WABA_MOCK`. Con la variable en `true` en Netlify, el envío igual iba a Twilio. Fix: `const isMock = process.env.NEXT_PUBLIC_WABA_MOCK === 'true' || waba.api_key.startsWith('mock_')`
 - **Webhook status update con cliente incorrecto**: el update de `delivered/read/failed` en `webhooks/twilio/route.ts` usaba `createClient()` (auth con cookies). En un webhook de Twilio no hay sesión de usuario → con RLS activo el UPDATE no actualizaba ninguna fila (falla silenciosa). Fix: usar `getServiceClient()` que bypasea RLS. Regla general: cualquier operación de escritura en API Routes sin sesión de usuario debe usar service role key.
-- **Validación de firma Twilio con token incorrecto (403)**: el webhook validaba con `TWILIO_AUTH_TOKEN` (master account) pero Twilio firma los StatusCallback y los mensajes entrantes con el auth token del **subaccount** que los origina. Fix: array `tokensToTry = [TWILIO_AUTH_TOKEN, TWILIO_SUBACCOUNT_AUTH_TOKEN]`, se valida con `.some()` — si cualquiera matchea se acepta el request. Variable `TWILIO_SUBACCOUNT_AUTH_TOKEN` agregada en Netlify. Cuando haya múltiples subaccounts habrá que buscar el token por número destino en `waba_connections`.
+- **Validación de firma Twilio con token incorrecto (403)**: el webhook validaba con `TWILIO_AUTH_TOKEN` (master account) pero Twilio firma los StatusCallback y los mensajes entrantes con el auth token del **subaccount** que los origina. Fix: array `tokensToTry = [TWILIO_SUBACCOUNT_AUTH_TOKEN, TWILIO_AUTH_TOKEN]` (subaccount primero), se valida con `.some()` — si cualquiera matchea se acepta el request. Variable `TWILIO_SUBACCOUNT_AUTH_TOKEN` agregada en Netlify. Cuando haya múltiples subaccounts habrá que buscar el token por número destino en `waba_connections`.
+- **Mensajes inbound de Twilio — dónde se configura el webhook**: el webhook para mensajes entrantes se configura en Twilio Console → Phone Numbers → Active Numbers → el número → Messaging Configuration → campo "A message comes in". Es completamente independiente del `StatusCallback` que se pasa en el POST al enviar un mensaje outbound. Si solo está configurado el StatusCallback, los inbound no llegan.
+- **Link de reseña en WhatsApp mobile**: usar `maps?cid=` en lugar de `/writereview` para evitar que WhatsApp mobile muestre un iframe en lugar de abrir Google Maps correctamente.
+- **Logo en WhatsApp Business**: se configura desde Twilio Console → Messaging → WhatsApp Senders → editar el sender. No se controla desde el código.
+- **Status máximo en cuentas WhatsApp Business**: el status `read` solo llega si el usuario final tiene los read receipts activados. Por defecto están desactivados → el status máximo esperado en producción es `delivered`.
 
 ## Aprendizajes Twilio (sesión 2 abril 2026)
 
