@@ -11,6 +11,23 @@ function getServiceClient() {
 
 const OPT_OUT_KEYWORDS = ['stop', 'baja', 'no', 'cancelar', 'salir', 'nomasinfo']
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function buildTwimlResponse(message: string): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(message)}</Message></Response>`
+  return new Response(twiml, {
+    status: 200,
+    headers: { 'Content-Type': 'text/xml' },
+  })
+}
+
 function validateTwilioSignature(
   authToken: string,
   signature: string,
@@ -115,11 +132,7 @@ export async function POST(request: Request) {
           )
       }
 
-      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>Listo, te dimos de baja. No recibirás más mensajes de nuestra parte.</Message></Response>`
-      return new Response(twiml, {
-        status: 200,
-        headers: { 'Content-Type': 'text/xml' },
-      })
+      return buildTwimlResponse('Listo, te dimos de baja. No recibirás más mensajes de nuestra parte.')
     }
 
     // Mensaje entrante — reply forwarding
@@ -205,16 +218,20 @@ export async function POST(request: Request) {
         console.error('Webhook — excepción al reenviar:', err)
       }
 
-      return NextResponse.json({ ok: true })
+      // Responder al usuario final con link wa.me al forwarding_number
+      const waNumber = org.forwarding_number.replace(/\D/g, '')
+      const autoReply =
+        `Gracias por tu mensaje.\n\nEste número solo se utiliza para enviar solicitudes de reseñas. ` +
+        `Si querés hacernos una consulta, comentario o necesitás atención al cliente, escribinos al: ` +
+        `wa.me/${waNumber}`
+      return buildTwimlResponse(autoReply)
     }
 
     // Sin forwarding_number — responder al usuario final con TwiML
     console.log('Webhook — sin forwarding_number, respondiendo con TwiML a:', fromPhone)
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>Gracias por tu mensaje. Para consultas, escribinos directamente a ${org.name}.</Message></Response>`
-    return new Response(twiml, {
-      status: 200,
-      headers: { 'Content-Type': 'text/xml' },
-    })
+    return buildTwimlResponse(
+      'Gracias por tu mensaje.\n\nEste número solo se utiliza para enviar solicitudes de reseñas.'
+    )
   }
 
   if (!messageSid || !messageStatus) {
