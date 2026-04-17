@@ -60,7 +60,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 7 (parte 2): UI de envío múltiple — agregar contactos de a uno, lista previa, envío batch
 - [x] Fase 7 (parte 3): Envíos programados — descartado para esta versión
 - [x] Fase 8: Opt-out / Blacklist — tabla blacklist creada, API GET/POST/DELETE, verificación en send/route.ts, detección automática en webhook, UI en /dashboard/blacklist
-- [ ] Fase 9: Derivación de respuestas — webhook recibe inbound correctamente y el reenvío funciona cuando hay forwarding_number. Falta fix: cuando la org NO tiene forwarding_number configurado, el fallback TwiML falla con error. Máxima prioridad: bloqueante para onboardear clientes sin número de derivación.
+- [x] Fase 9: Derivación de respuestas — webhook responde al usuario final en todos los casos (con y sin forwarding_number) + reenvía mensaje al cliente cuando hay forwarding_number configurado. Mensaje al usuario final incluye link wa.me clickeable para redirigirlo al canal de atención del cliente.
 - [x] Webhook fix: mensajes inbound configurados en Twilio Console → Messaging → WhatsApp Senders → el sender → "Webhook URL for incoming messages"
 - [x] Derivación de respuestas: formato del mensaje de reenvío corregido ("Mensaje de +[número] para [org]: [texto]") + logs de debugging agregados en todo el path inbound
 - [x] Diseño del dashboard actualizado con identidad de marca Médano — paleta navy/royal/mid/light, tipografías DM Sans + Barlow Condensed, tokens CSS en globals.css
@@ -74,17 +74,18 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
 - [ ] Fase 13: Billing — prepago de créditos, corte automático por saldo
-- [ ] UI: cambiar colores de los badges de status en message-logs-table (sent, delivered, read) para mejorar legibilidad visual. Actualmente poco diferenciables.
-- [ ] Settings: editar nombre de organización desde /dashboard/settings.
+- [x] UI: cambiar colores de los badges de status en message-logs-table (pending/sent amarillo, delivered royal, read verde, failed rojo, blocked gris, reply_received violeta) — mejora de legibilidad visual.
+- [x] Settings: editar nombre de organización desde /dashboard/settings. Bloque nuevo arriba de Sede central, validación 2-60 chars, actualiza sidebar con router.refresh().
 - [ ] Settings: cambiar email del usuario con flujo de verificación — el usuario ingresa nuevo email → se envía código de 6 dígitos a la nueva casilla vía Resend → usuario ingresa el código en el dashboard → recién ahí se confirma el cambio. Protege contra errores de tipeo y valida que la casilla pertenezca al usuario.
 
 ---
 
-## Estado del piloto (15 abril 2026)
+## Estado del piloto (17 abril 2026)
 
 ### Estado del piloto
 - **Cliente piloto #1 activo**: Centro de Ojos Buenos Aires (número +1 365 906 3072, subaccount COBA). Test end-to-end completado con éxito: mensaje enviado, entregado, leído, status actualizados correctamente en message_logs. Cliente real en producción.
-- **Próximas pruebas pendientes**: path de respuesta sin forwarding_number (bloqueado por bug de Fase 9).
+- **Path de respuesta sin forwarding_number**: validado en producción. Usuario final recibe mensaje de respuesta automática correctamente.
+- **Path con forwarding_number**: validado en producción. Cliente recibe reenvío del mensaje en su número de atención, usuario final recibe respuesta automática con link wa.me clickeable.
 
 ---
 
@@ -675,6 +676,17 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - Los inserts en `message_logs` y las queries del dashboard deben usar service role key (`SUPABASE_SERVICE_ROLE_KEY`) para evitar restricciones de RLS
 - Columna `wam_id` faltaba en producción — aplicar con `ALTER TABLE message_logs ADD COLUMN IF NOT EXISTS wam_id TEXT` en SQL Editor si la migración no se aplicó via CLI
 - El campo orgName que muestra el sidebar viene de `organizations.name` en Supabase — si aparece un valor incorrecto, corregirlo directamente en la DB desde el Table Editor de Supabase
+
+## Aprendizajes técnicos — sesión 17 abril 2026
+
+- **Bug en path de forwarding_number**: hasta hoy, cuando la org tenía forwarding_number configurado, el webhook reenviaba el mensaje al cliente pero NO respondía nada al usuario final (solo devolvía NextResponse.json). Esto dejaba al usuario final sin feedback. Fix: el webhook ahora siempre devuelve TwiML con mensaje automático al usuario final, independientemente de si hay forwarding_number o no. El reenvío al cliente ocurre antes del return del TwiML.
+- **Copy de mensajes de respuesta automática al usuario final**:
+  - Con forwarding_number: "Gracias por tu mensaje.\n\nEste número solo se utiliza para enviar solicitudes de reseñas. Si querés hacernos una consulta, comentario o necesitás atención al cliente, escribinos al: wa.me/{forwarding_number_sin_mas}"
+  - Sin forwarding_number: "Gracias por tu mensaje.\n\nEste número solo se utiliza para enviar solicitudes de reseñas."
+- **Link wa.me funciona en WhatsApp mobile**: click abre conversación directa con el número del forwarding_number. Cero fricción para el usuario final — no necesita copiar/pegar número.
+- **Nombre de organización como dato de producto crítico**: organizations.name se usa en el sidebar del dashboard, en el mensaje de reenvío al cliente ("Mensaje de +XXX para {org.name}: ..."), y en las respuestas automáticas al usuario final. Dejarlo con un valor interno tipo "COBA" (nombre del subaccount de Twilio) rompe la UX de cara al cliente y al usuario final. Debe ser editable desde UI desde el día 1.
+- **Escape XML en TwiML**: el TwiML devuelto al usuario final incluye valores de DB (forwarding_number, nombre de org) — agregada función helper escapeXml() para evitar XML malformado si alguno contiene &, <, >, ' o ". Twilio rechaza TwiML mal formado con error 12100.
+- **Centro de Ojos Buenos Aires — piloto validado end-to-end**: los 4 caminos del ciclo de vida de mensaje funcionan en producción (sent → delivered → read → reply_received con forwarding, y también el path blocked para opt-out).
 
 ## Skills de Claude.ai (proyecto)
 
