@@ -14,13 +14,13 @@ interface Props {
 }
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  sent:           { label: 'Enviado',     className: 'bg-[#eceef8] text-[#1a4793]' },
-  delivered:      { label: 'Entregado',   className: 'bg-[#eceef8] text-[#1a4793]' },
-  read:           { label: 'Leído',       className: 'bg-[#eceef8] text-[#1a4793]' },
-  reply_received: { label: 'Respondido',  className: 'bg-[#eceef8] text-[#1a4793]' },
-  pending:        { label: 'Pendiente',   className: 'bg-yellow-50 text-yellow-700' },
-  failed:         { label: 'Error',       className: 'bg-red-50 text-red-700' },
-  blocked:        { label: 'Bloqueado',   className: 'bg-red-50 text-red-700' },
+  pending:        { label: 'Pendiente',   className: 'bg-yellow-100 text-yellow-800' },
+  sent:           { label: 'Enviado',     className: 'bg-yellow-100 text-yellow-800' },
+  delivered:      { label: 'Entregado',   className: 'bg-blue-100 text-blue-800' },
+  read:           { label: 'Leído',       className: 'bg-green-100 text-green-800' },
+  failed:         { label: 'Error',       className: 'bg-red-100 text-red-800' },
+  blocked:        { label: 'Bloqueado',   className: 'bg-gray-200 text-gray-700' },
+  reply_received: { label: 'Respondido',  className: 'bg-purple-100 text-purple-800' },
 }
 
 export function MessageLogsTable({ logs }: Props) {
