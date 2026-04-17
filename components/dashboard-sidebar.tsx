@@ -15,7 +15,7 @@ interface Props {
 const NAV_LINKS: { href: string; label: string; icon: React.ReactNode; exact: boolean }[] = [
   { href: '/dashboard', label: 'Pedir reseñas', icon: <Send size={16} />, exact: true },
   { href: '/dashboard/blacklist', label: 'Opt-out', icon: <span className="text-base leading-none">🚫</span>, exact: false },
-  { href: '/dashboard/settings', label: 'Ajustes', icon: <span className="text-base leading-none">⚙️</span>, exact: false },
+  { href: '/dashboard/settings', label: 'Configuración', icon: <span className="text-base leading-none">⚙️</span>, exact: false },
 ]
 
 export function DashboardSidebar({ orgName, userEmail }: Props) {
