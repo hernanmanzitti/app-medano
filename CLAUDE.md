@@ -70,6 +70,10 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Logo Médano agregado al sidebar — archivo: public/logo-medano.png, commit 2f39a48. Reemplaza el texto "médano" en desktop (120×40px) y mobile (90×30px)
 - [x] Texto descriptivo de "Derivación de respuestas" en settings corregido — eliminado duplicado, texto actualizado
 - [x] Sección "Link de reseña" renombrada a "Sede central" en settings con descripción actualizada
+- [x] Sidebar: logo Medano clickeable al dashboard
+- [x] Sidebar: renombrado "Inicio" → "Pedir reseñas" con ícono Send de lucide-react
+- [x] Sidebar: renombrado "Ajustes" → "Configuración"
+- [x] Sidebar: bloque "¿Necesitás ayuda?" al final con mail hola@medano.co (mailto) y WhatsApp +54 9 11 7361 6189 (wa.me/5491173616189)
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
@@ -86,6 +90,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - **Cliente piloto #1 activo**: Centro de Ojos Buenos Aires (número +1 365 906 3072, subaccount COBA). Test end-to-end completado con éxito: mensaje enviado, entregado, leído, status actualizados correctamente en message_logs. Cliente real en producción.
 - **Path de respuesta sin forwarding_number**: validado en producción. Usuario final recibe mensaje de respuesta automática correctamente.
 - **Path con forwarding_number**: validado en producción. Cliente recibe reenvío del mensaje en su número de atención, usuario final recibe respuesta automática con link wa.me clickeable.
+- **Dashboard refinado**: naming de navegación ajustado al dominio del producto ("Pedir reseñas" vs "Inicio" genérico), canales de soporte Medano visibles desde cualquier pantalla, logo clickeable para volver al home. Listo para onboardear clientes piloto adicionales.
 
 ---
 
@@ -687,6 +692,8 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - **Nombre de organización como dato de producto crítico**: organizations.name se usa en el sidebar del dashboard, en el mensaje de reenvío al cliente ("Mensaje de +XXX para {org.name}: ..."), y en las respuestas automáticas al usuario final. Dejarlo con un valor interno tipo "COBA" (nombre del subaccount de Twilio) rompe la UX de cara al cliente y al usuario final. Debe ser editable desde UI desde el día 1.
 - **Escape XML en TwiML**: el TwiML devuelto al usuario final incluye valores de DB (forwarding_number, nombre de org) — agregada función helper escapeXml() para evitar XML malformado si alguno contiene &, <, >, ' o ". Twilio rechaza TwiML mal formado con error 12100.
 - **Centro de Ojos Buenos Aires — piloto validado end-to-end**: los 4 caminos del ciclo de vida de mensaje funcionan en producción (sent → delivered → read → reply_received con forwarding, y también el path blocked para opt-out).
+- **Canal de contacto con clientes desde el dashboard**: datos de atención al cliente expuestos directamente en el sidebar — hola@medano.co y +54 9 11 7361 6189 (WhatsApp). Link de WhatsApp prioritario sobre teléfono tradicional porque Medano es empresa de WhatsApp: cero fricción para el cliente que necesita ayuda.
+- **Label de navegación principal**: "Pedir reseñas" en plural, no "Pedir reseña" — refleja el uso real (acción repetida / múltiple) y lee mejor cuando el cliente ya tiene historial cargado. Ícono Send (avión de papel) refuerza el concepto de envío de mensaje.
 
 ## Skills de Claude.ai (proyecto)
 
