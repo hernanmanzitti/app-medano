@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
+import { SidebarProvider } from '@/components/sidebar-context'
 
 export default async function DashboardLayout({
   children,
@@ -21,12 +22,14 @@ export default async function DashboardLayout({
   if (!org) redirect('/onboarding')
 
   return (
-    <div className="flex min-h-screen bg-[#f4f5fb]">
-      <DashboardSidebar orgName={org.name} userEmail={user.email ?? ''} />
-      {/* pt-14 en mobile para compensar el top bar fijo */}
-      <div className="flex-1 min-w-0 pt-14 md:pt-0">
-        {children}
+    <SidebarProvider>
+      <div className="flex min-h-screen bg-[#f4f5fb]">
+        <DashboardSidebar orgName={org.name} userEmail={user.email ?? ''} />
+        {/* pt-14 en mobile para compensar el top bar fijo */}
+        <div className="flex-1 min-w-0 pt-14 md:pt-0">
+          {children}
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }
