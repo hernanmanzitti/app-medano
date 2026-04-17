@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { Send } from 'lucide-react'
 
 interface Props {
   orgName: string
   userEmail: string
 }
 
-const NAV_LINKS = [
-  { href: '/dashboard', label: 'Inicio', icon: '🏠', exact: true },
-  { href: '/dashboard/blacklist', label: 'Opt-out', icon: '🚫', exact: false },
-  { href: '/dashboard/settings', label: 'Ajustes', icon: '⚙️', exact: false },
+const NAV_LINKS: { href: string; label: string; icon: React.ReactNode; exact: boolean }[] = [
+  { href: '/dashboard', label: 'Pedir reseñas', icon: <Send size={16} />, exact: true },
+  { href: '/dashboard/blacklist', label: 'Opt-out', icon: <span className="text-base leading-none">🚫</span>, exact: false },
+  { href: '/dashboard/settings', label: 'Ajustes', icon: <span className="text-base leading-none">⚙️</span>, exact: false },
 ]
 
 export function DashboardSidebar({ orgName, userEmail }: Props) {
@@ -64,7 +65,7 @@ export function DashboardSidebar({ orgName, userEmail }: Props) {
                   : 'text-[#b4b7d9] hover:text-white hover:bg-[#1a4793]/60'
               }`}
             >
-              <span className="text-base leading-none">{icon}</span>
+              <span className="shrink-0">{icon}</span>
               {label}
             </Link>
           ))}
