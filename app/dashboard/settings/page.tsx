@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
+import { OrgNameForm } from '@/components/org-name-form'
 import { OrgReviewLinkForm } from '@/components/org-review-link-form'
 import { LocationsManager } from '@/components/locations-manager'
 import { ForwardingNumberForm } from '@/components/forwarding-number-form'
@@ -26,6 +27,16 @@ export default async function SettingsPage() {
 
   return (
     <main className="max-w-xl mx-auto px-6 py-10 space-y-10">
+
+      <section>
+        <h2 className="text-base font-semibold text-[#00246b] mb-1">Nombre del negocio</h2>
+        <p className="text-sm text-[#646caa] mb-4">
+          Este nombre aparece en el sidebar, en los mensajes reenviados a tu número de atención y en las respuestas automáticas a tus clientes.
+        </p>
+        <OrgNameForm initialName={org.name} />
+      </section>
+
+      <hr className="border-[#b4b7d9]" />
 
       <section>
         <h2 className="text-base font-semibold text-[#00246b] mb-1">Sede central</h2>

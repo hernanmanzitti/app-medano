@@ -8,16 +8,27 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await request.json()
-  const { review_link, forwarding_number } = body
+  const { review_link, forwarding_number, name } = body
 
-  if (review_link === undefined && forwarding_number === undefined) {
+  if (review_link === undefined && forwarding_number === undefined && name === undefined) {
     return NextResponse.json(
-      { error: 'Al menos un campo requerido: review_link o forwarding_number' },
+      { error: 'Al menos un campo requerido: name, review_link o forwarding_number' },
       { status: 400 }
     )
   }
 
   const updates: Record<string, string | null> = {}
+
+  if (name !== undefined) {
+    const trimmedName = typeof name === 'string' ? name.trim() : ''
+    if (trimmedName.length < 2 || trimmedName.length > 60) {
+      return NextResponse.json(
+        { error: 'El nombre debe tener entre 2 y 60 caracteres' },
+        { status: 400 }
+      )
+    }
+    updates.name = trimmedName
+  }
 
   if (review_link !== undefined) {
     if (typeof review_link !== 'string' || review_link.trim().length === 0) {
