@@ -60,7 +60,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 7 (parte 2): UI de envío múltiple — agregar contactos de a uno, lista previa, envío batch
 - [x] Fase 7 (parte 3): Envíos programados — descartado para esta versión
 - [x] Fase 8: Opt-out / Blacklist — tabla blacklist creada, API GET/POST/DELETE, verificación en send/route.ts, detección automática en webhook, UI en /dashboard/blacklist
-- [ ] Fase 9: Derivación de respuestas — webhook recibe mensajes entrantes pero el fallback TwiML falla con error. Pendiente para próxima sesión.
+- [ ] Fase 9: Derivación de respuestas — webhook recibe inbound correctamente y el reenvío funciona cuando hay forwarding_number. Falta fix: cuando la org NO tiene forwarding_number configurado, el fallback TwiML falla con error. Máxima prioridad: bloqueante para onboardear clientes sin número de derivación.
 - [x] Webhook fix: mensajes inbound configurados en Twilio Console → Messaging → WhatsApp Senders → el sender → "Webhook URL for incoming messages"
 - [x] Derivación de respuestas: formato del mensaje de reenvío corregido ("Mensaje de +[número] para [org]: [texto]") + logs de debugging agregados en todo el path inbound
 - [x] Diseño del dashboard actualizado con identidad de marca Médano — paleta navy/royal/mid/light, tipografías DM Sans + Barlow Condensed, tokens CSS en globals.css
@@ -74,6 +74,17 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
 - [ ] Fase 13: Billing — prepago de créditos, corte automático por saldo
+- [ ] UI: cambiar colores de los badges de status en message-logs-table (sent, delivered, read) para mejorar legibilidad visual. Actualmente poco diferenciables.
+- [ ] Settings: editar nombre de organización desde /dashboard/settings.
+- [ ] Settings: cambiar email del usuario con flujo de verificación — el usuario ingresa nuevo email → se envía código de 6 dígitos a la nueva casilla vía Resend → usuario ingresa el código en el dashboard → recién ahí se confirma el cambio. Protege contra errores de tipeo y valida que la casilla pertenezca al usuario.
+
+---
+
+## Estado del piloto (15 abril 2026)
+
+### Estado del piloto
+- **Cliente piloto #1 activo**: Centro de Ojos Buenos Aires (número +1 365 906 3072, subaccount COBA). Test end-to-end completado con éxito: mensaje enviado, entregado, leído, status actualizados correctamente en message_logs. Cliente real en producción.
+- **Próximas pruebas pendientes**: path de respuesta sin forwarding_number (bloqueado por bug de Fase 9).
 
 ---
 
@@ -146,6 +157,7 @@ Infra compartida (~$50 Supabase + hosting) se divide entre clientes activos. Bre
 - Mock de envío: si `NEXT_PUBLIC_WABA_MOCK=true` o si `api_key` en `waba_connections` empieza con `mock_`, se omite la llamada al BSP y se loguea como 'sent'
 - Sucursal opcional en el envío: si se selecciona, se usa su `review_link`; si no, se usa el de la org
 - Historial embebido en el dashboard (últimos 20), no en una página separada
+- Cambio de email de usuario: flujo de verificación con código de 6 dígitos enviado vía Resend (ya configurado como SMTP de Supabase con dominio medano.co, sender noreply@medano.co). No se usa el magic link nativo de Supabase Auth — se implementa un flujo custom para tener control del UX y poder mostrar feedback inline en el dashboard (código expira en 10 min, máximo 3 intentos).
 
 ## Actores del sistema
 | Actor           | Descripción                                          | Acceso                        |
