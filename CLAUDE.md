@@ -74,6 +74,10 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Sidebar: renombrado "Inicio" → "Pedir reseñas" con ícono Send de lucide-react
 - [x] Sidebar: renombrado "Ajustes" → "Configuración"
 - [x] Sidebar: bloque "¿Necesitás ayuda?" al final con mail hola@medano.co (mailto) y WhatsApp +54 9 11 7361 6189 (wa.me/5491173616189)
+- [x] Sidebar: colapsable lateralmente en desktop con toggle en el borde derecho (ChevronLeft/ChevronRight de lucide-react). Ancho expandido actual, colapsado ~64px (rail). Estado persistido en localStorage bajo 'medano-sidebar-collapsed'. Mobile sin cambios (hamburguesa).
+- [x] Sidebar colapsado oculta: nombre de la organización, labels de los links (se muestran via tooltip nativo `title`), bloque "¿Necesitás ayuda?" y label del logout. Solo quedan íconos centrados.
+- [x] SidebarProvider (components/sidebar-context.tsx) expone { collapsed, toggle } para que el layout ajuste el margen izquierdo del main sin sincronización manual vía localStorage.
+- [ ] Sidebar colapsado — tratamiento del logo: refinar con iso dedicado (public/logo-medano-iso.png) para que quede legible en 64px. Por ahora el logo actual se mantiene sin cambios de tamaño dentro del rail, con overflow-hidden en el contenedor.
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
@@ -694,6 +698,9 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - **Centro de Ojos Buenos Aires — piloto validado end-to-end**: los 4 caminos del ciclo de vida de mensaje funcionan en producción (sent → delivered → read → reply_received con forwarding, y también el path blocked para opt-out).
 - **Canal de contacto con clientes desde el dashboard**: datos de atención al cliente expuestos directamente en el sidebar — hola@medano.co y +54 9 11 7361 6189 (WhatsApp). Link de WhatsApp prioritario sobre teléfono tradicional porque Medano es empresa de WhatsApp: cero fricción para el cliente que necesita ayuda.
 - **Label de navegación principal**: "Pedir reseñas" en plural, no "Pedir reseña" — refleja el uso real (acción repetida / múltiple) y lee mejor cuando el cliente ya tiene historial cargado. Ícono Send (avión de papel) refuerza el concepto de envío de mensaje.
+- **Hydration mismatch con localStorage**: para estados persistidos en localStorage que afectan el render (ej: sidebar colapsado), el render inicial del servidor siempre parte del default (expandido) y el valor persistido se aplica en el primer useEffect del cliente. Evita mismatch Next.js/React al no intentar leer localStorage durante SSR.
+- **Estado compartido sidebar ↔ main**: usar React Context (SidebarProvider) en lugar de que cada componente lea localStorage por su cuenta. Evita sincronización manual vía storage events y deja un único source of truth.
+- **Tooltip nativo con `title`**: suficiente para rails colapsados en MVP. Si en el futuro se pide UX más prolija (delay corto, estilo de marca), evaluar tooltip con Tailwind + group-hover sin librerías externas.
 
 ## Skills de Claude.ai (proyecto)
 
