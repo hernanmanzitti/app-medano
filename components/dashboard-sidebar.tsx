@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Send } from 'lucide-react'
+import { Send, Mail, MessageCircle } from 'lucide-react'
 
 interface Props {
   orgName: string
@@ -70,6 +70,29 @@ export function DashboardSidebar({ orgName, userEmail }: Props) {
             </Link>
           ))}
         </nav>
+
+        {/* Bloque ayuda */}
+        <div className="px-4 py-4 border-t border-white/10">
+          <p className="text-xs text-[#646caa] font-medium mb-2">¿Necesitás ayuda?</p>
+          <div className="space-y-0.5">
+            <a
+              href="mailto:hola@medano.co"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-[#b4b7d9] hover:text-white hover:bg-[#1a4793]/60 transition-colors"
+            >
+              <Mail size={15} className="shrink-0" />
+              hola@medano.co
+            </a>
+            <a
+              href="https://wa.me/5491173616189"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm text-[#b4b7d9] hover:text-white hover:bg-[#1a4793]/60 transition-colors"
+            >
+              <MessageCircle size={15} className="shrink-0" />
+              +54 9 11 7361 6189
+            </a>
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="px-4 py-5 border-t border-[#1a4793]">
