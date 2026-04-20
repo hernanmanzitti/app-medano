@@ -12,6 +12,25 @@ Clientes conectan su WABA (vía Twilio) y lanzan solicitudes de reseña desde el
 - Deploy: Netlify
 - Fechas: date-fns con locale `es`
 
+## Equipo
+
+**Medano (el SaaS):**
+- Hernán Manzitti — founder, único developer, producto, soporte técnico
+- Dev: Hernán solo + Claude Code (no hay equipo técnico adicional)
+
+**DataTrackers (empresa hermana, white-label de ReviewTrackers):**
+- Hernán Manzitti — founder
+- Manuel — socio vendedor
+- Alejandra — operaciones
+
+**Implicancia para el roadmap de Medano:** todo feature nuevo tiene que 
+ser construible por 1 persona + Claude Code. Cualquier feature que 
+requiera dev team dedicado queda fuera de scope hasta que el negocio 
+justifique contratar. Features con dependencias externas complejas (OAuth 
+multi-tenant con APIs restrictivas como Google Business Profile) pueden 
+requerir traer un dev freelance puntual por 2–3 semanas cuando llegue 
+el momento, no antes.
+
 ## Variables de entorno necesarias
 ```
 NEXT_PUBLIC_SUPABASE_URL=
@@ -794,6 +813,47 @@ informativas en el dashboard, no como feature accionable.
 Ventana de 12–18 meses antes de que Birdeye o Podium lleguen a LATAM con 
 equipo local en español. La consolidación de clientes + distribución tiene 
 que pasar en ese período.
+
+### Regla de priorización del roadmap
+
+**Fase 13 (Billing) es bloqueante para todo lo demás.** Sin billing 
+funcionando no hay forma de cobrar, y sin ingresos predecibles no tiene 
+sentido invertir tiempo de dev en features estratégicos de Tier 1.
+
+**Orden de ejecución obligatorio:**
+
+1. **Fase 13 — Billing** (prepago de créditos, corte automático por saldo). 
+   Bloqueante. Sin esto, todo el resto es futuro sin fundamento económico.
+2. **Fase 14 — AI visibility tracking.** Primer feature estratégico post-
+   billing. Más corto de construir (3–4 semanas MVP con Claude Code), 
+   vendible como add-on independiente ("+$15/mes"), diferenciador claro 
+   para captar clientes nuevos mientras se valida el modelo.
+3. **Pausa de evaluación:** con 10–15 clientes pagando, validar si las 
+   Fases 15 y 16 tienen demanda real antes de invertir meses de dev.
+4. **Fase 15 — Agente AI WhatsApp inbound** (6–8 semanas, solo + Claude 
+   Code). Requiere período largo de "modo sugerencia" antes de autónomo 
+   — el costo de equivocarse en un mensaje de un paciente o cliente 
+   final es alto.
+5. **Fase 16 — Visibility Optimizer GBP + ABC** (3–4 meses). Bloqueador 
+   potencial: aprobación de Google como developer de GBP API puede tardar 
+   semanas o meses. Apple Business Connect API tiene documentación pobre 
+   para multi-tenant. Punto probable donde conviene traer dev freelance 
+   senior por 2–3 semanas para desbloquear OAuth multi-tenant, no más.
+
+**Features pendientes NO estratégicos pero operativos** (Fase 6 
+onboarding wizard, Fase 10 estadísticas, Fase 12 admin panel): se 
+intercalan entre las fases estratégicas según prioridad operativa, sin 
+bloquear el orden de arriba.
+
+**Reglas implícitas derivadas:**
+- No arrancar Fase 14 sin Fase 13 cerrada y cobrando.
+- No arrancar Fase 15 sin al menos 10 clientes pagando que validen demanda 
+  por agente AI inbound.
+- No arrancar Fase 16 sin al menos 15 clientes pagando y validación explícita 
+  de que clientes quieren delegar el mantenimiento de GBP.
+- La ventana competitiva de 12–18 meses antes de que Birdeye/Podium lleguen 
+  a LATAM se prioriza con Fase 14 (el diferenciador más visible y rápido), 
+  no con Fase 16 (el más largo y riesgoso).
 
 ### Decisiones tomadas (sesión 19 abril 2026)
 
