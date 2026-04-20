@@ -82,6 +82,9 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
 - [ ] Fase 13: Billing — prepago de créditos, corte automático por saldo
+- [ ] Fase 14: AI visibility tracking — monitoreo de citations en ChatGPT/Perplexity/Gemini para queries locales del cliente
+- [ ] Fase 15: Agente AI para WhatsApp inbound — clasifica mensajes entrantes, responde automáticamente los simples, escala los complejos al cliente (evolución de Fase 9)
+- [ ] Fase 16: Visibility Optimizer — mantenimiento automático de Google Business Profile + Apple Business Connect vía API
 - [x] UI: cambiar colores de los badges de status en message-logs-table (pending/sent amarillo, delivered royal, read verde, failed rojo, blocked gris, reply_received violeta) — mejora de legibilidad visual.
 - [x] Settings: editar nombre de organización desde /dashboard/settings. Bloque nuevo arriba de Sede central, validación 2-60 chars, actualiza sidebar con router.refresh().
 - [ ] Settings: cambiar email del usuario con flujo de verificación — el usuario ingresa nuevo email → se envía código de 6 dígitos a la nueva casilla vía Resend → usuario ingresa el código en el dashboard → recién ahí se confirma el cambio. Protege contra errores de tipeo y valida que la casilla pertenezca al usuario.
@@ -701,6 +704,112 @@ Requisito: Medano debe ser Tech Provider de Meta (proceso de 4-8 semanas). Inici
 - **Hydration mismatch con localStorage**: para estados persistidos en localStorage que afectan el render (ej: sidebar colapsado), el render inicial del servidor siempre parte del default (expandido) y el valor persistido se aplica en el primer useEffect del cliente. Evita mismatch Next.js/React al no intentar leer localStorage durante SSR.
 - **Estado compartido sidebar ↔ main**: usar React Context (SidebarProvider) en lugar de que cada componente lea localStorage por su cuenta. Evita sincronización manual vía storage events y deja un único source of truth.
 - **Tooltip nativo con `title`**: suficiente para rails colapsados en MVP. Si en el futuro se pide UX más prolija (delay corto, estilo de marca), evaluar tooltip con Tailwind + group-hover sin librerías externas.
+
+## Dirección estratégica del producto — sesión 19 abril 2026
+
+### Contexto: el ecosistema de reseñas está mutando
+
+**Agregadores B2C (Yelp, TripAdvisor, Foursquare) en declive estructural:**
+- TripAdvisor core revenue: -8% en 2024, -8% en Q1 2025. Tráfico orgánico -33% 
+  por AI Overviews. Evaluando venderse por partes.
+- Yelp: Q4 2025 revenue -1%, ad clicks bajando, EBITDA -15%. Apenas 6% del 
+  share total de reseñas online (Google tiene 73%).
+- Apple Maps está saliendo del modelo agregador: desde 2021 sistema nativo 
+  propio; mayo 2025 sumó fuentes editoriales curadas (MICHELIN, Infatuation). 
+  Camino a remover dependencia de Yelp/TripAdvisor/Foursquare.
+
+**Agregadores B2B (ReviewTrackers, Birdeye, Podium) creciendo pero mutando:**
+- Mercado reputation management: $6.47B (2025) → $19.29B (2035), CAGR 11.54%.
+- Líderes pivoteando de "agregador de reviews" a "agentic workforce for 
+  multi-location AI visibility" (SOCi rebrand 2025).
+- La capa clásica (agregar + responder) está commoditizada. Diferenciación 
+  se movió a: AI auto-response autónomo, monitoreo en ChatGPT/Perplexity/
+  Gemini (GEO), optimización automática de listings.
+
+**AI search como disruptor real:**
+- 45% de consumidores usa ChatGPT/generative AI para recomendaciones locales 
+  (vs 6% año anterior — BrightLocal).
+- SOCi 2026 Local Visibility Index: AI visibility es 3–30x más difícil que 
+  ranking en Google tradicional. Solo 1.2% de locations recomendadas por 
+  ChatGPT, 11% por Gemini, 7.4% por Perplexity.
+- Locations recomendadas por AI tienen rating promedio 4.3 (ChatGPT), 
+  3.9 (Gemini), 4.1 (Perplexity). Businesses <3.4 estrellas y response 
+  rate <5% a reviews son invisibles a las IAs.
+- Las AIs usan reviews como filtro de confianza: volumen + rating + sentiment 
+  + response rate + consistencia cross-platform.
+
+### Reposicionamiento de Medano
+
+**Premisa clave:** DataTrackers es white-label de ReviewTrackers. ReviewTrackers 
+NO acepta agregar features nuevas al white-label. Por lo tanto, toda 
+innovación AI del stack se construye en Medano, no en DataTrackers.
+
+**Stack completo y rol de cada producto (post-evolución):**
+1. Medano captura reviews vía WhatsApp (review request).
+2. DataTrackers agrega, analiza y responde (capa existente via ReviewTrackers).
+3. Medano maneja WhatsApp inbound con agente AI (evolución de Fase 9).
+4. Medano mide visibilidad en ChatGPT/Gemini/Perplexity.
+5. Medano mantiene GBP + Apple Business Connect optimizados automáticamente.
+
+Pitch resultante: "Visibilidad local en la era de la IA — para negocios 
+que hablan español". Diferenciación vs Birdeye/Podium: WhatsApp nativo, 
+español River Plate, pricing SMB LATAM.
+
+### Gaps en ReviewTrackers (qué cubre Medano)
+
+RT **ya cubre:** agregación 100+ sitios, respuesta dashboard, Smart Response 
+con templates/merge tags, NLP sentiment, Reputation Scorecard, competitor 
+tracking, listings management, API+Zapier, Hootsuite, multi-location, 
+request email+SMS.
+
+RT **NO tiene** (oportunidades para Medano):
+- AI visibility tracking (citations en ChatGPT/Perplexity/Gemini)
+- GEO / Answer Engine Optimization
+- Agentes AI autónomos (Smart Response es template-based)
+- WhatsApp como canal de request o inbound
+- Español (solo inglés)
+- Pricing LATAM
+
+### Regla maestra para features nuevos en Medano
+
+**Solo features ejecutables sin consultoría.** Nada que requiera tocar el 
+sitio web del cliente (schema markup, robots.txt, FAQ pages, páginas por 
+ciudad) — el cliente SMB no tiene dev team y la consultoría rompe el 
+modelo SaaS.
+
+**Descartado explícitamente:** GEO auditor del sitio web (implementación 
+de schema/robots.txt/structured data). Queda como recomendaciones 
+informativas en el dashboard, no como feature accionable.
+
+### Tier 1 — features a construir (mapeo a fases del roadmap)
+
+| Fase | Feature | Timing | Por qué ahora |
+|------|---------|--------|---------------|
+| 14 | AI visibility tracking | Mes 1–2 post-piloto | Stack Medano ya sirve (Next.js + Supabase + Netlify). Tablas nuevas: `ai_visibility_prompts`, `ai_visibility_scans`. Jobs con Netlify scheduled functions. Costo API: ~$3–5/cliente/mes con GPT-4o-mini + Haiku + Gemini Flash (~30 prompts/semana × 4 LLMs × 4 semanas = 480 queries). MVP en 3–4 semanas. Vendible como add-on "+$15/mes". |
+| 15 | Agente AI para WhatsApp inbound | Mes 2–4 | Evolución natural de Fase 9. Clasifica mensajes entrantes (queja/consulta/agradecimiento/fuera-de-scope), responde automáticamente los simples, escala los complejos al cliente. Diferenciador único — ningún competidor tiene agente AI para WhatsApp inbound en español. |
+| 16 | Visibility Optimizer | Mes 4–6 | GBP + Apple Business Connect vía API pública. Mantiene NAP consistente, horarios, categorías, posts automáticos generados con AI, fotos pendientes, Q&A del listing. Requiere flujo OAuth en onboarding para guardar credenciales de GBP/ABC del cliente. Más pesado técnicamente que los anteriores. |
+
+### Amenaza competitiva
+
+Ventana de 12–18 meses antes de que Birdeye o Podium lleguen a LATAM con 
+equipo local en español. La consolidación de clientes + distribución tiene 
+que pasar en ese período.
+
+### Decisiones tomadas (sesión 19 abril 2026)
+
+1. **Medano se reposiciona como vehículo de innovación AI del stack** 
+   (no solo captación WhatsApp). DataTrackers queda como la capa de 
+   agregación/respuesta clásica vía RT.
+2. **Tier 1 definitivo:** AI visibility tracking (Fase 14) → Agente 
+   WhatsApp inbound (Fase 15) → Visibility Optimizer (Fase 16).
+3. **Regla "sin consultoría"** para todo feature nuevo. Si requiere tocar 
+   el sitio del cliente o trabajo manual, queda afuera.
+4. **GEO del sitio web descartado** como feature accionable. Queda como 
+   recomendaciones informativas, no como producto.
+5. **DataTrackers sí tiene listings management** vía RT — no duplicar 
+   en Medano.
+
+---
 
 ## Skills de Claude.ai (proyecto)
 
