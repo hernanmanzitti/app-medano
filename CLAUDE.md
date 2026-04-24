@@ -72,6 +72,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] StatusCallback agregado en send/route.ts — Twilio notificará delivered/read/failed al webhook
 - [x] Confirmación de Twilio Support (ticket #26222642, 14 abril 2026): Sender +13659063072 registrado y activo. Límite Meta: 250 conversaciones únicas/24hs, máximo 2 números por WABA. Suficiente para el piloto.
 - [x] Template medano_review_request aprobado por Meta — envíos business-initiated activos desde el 15 abril 2026.
+- [x] Segunda versión del template aprobada por Meta — `medano_review_request_4`, SID: `HX9cdb22e28be112f5020f1a412da0f88f` (23 abril 2026). Copy nuevo con CTA visual al final (👇 + link en línea propia) y firma en medio. TWILIO_TEMPLATE_SID actualizado en Netlify. Posiciones de variables sin cambios, sin modificaciones en send/route.ts. SID anterior HX6f8e742a9ad31e8fd67f0d2db2b690ad queda obsoleto.
 - [x] Integración Twilio: connect-waba/route.ts reescrito para Twilio (valida credenciales subaccount + upsert en waba_connections)
 - [x] Fase 5 (parte 2): validación de firma Twilio en el webhook (X-Twilio-Signature)
 - [ ] Fase 6: Onboarding wizard guiado (reemplaza el onboarding actual de 2 pasos)
@@ -123,7 +124,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 ## Onboarding de nuevo cliente (checklist operativo)
 
 ### Lo que está configurado una sola vez y NO se repite
-- Template `medano_review_request` aprobado por Meta (SID: HX6f8e742a9ad31e8fd67f0d2db2b690ad)
+- Template `medano_review_request_4` aprobado por Meta (SID: HX9cdb22e28be112f5020f1a412da0f88f, versión del 23 abril 2026)
 - Variables de entorno en Netlify (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TEMPLATE_SID, TWILIO_SUBACCOUNT_AUTH_TOKEN, NEXT_PUBLIC_APP_URL, etc.)
 - Supabase configurado (DB, Auth, RLS, SMTP con Resend)
 - URL base del webhook: `https://appmedano.netlify.app/api/webhooks/twilio`
@@ -302,12 +303,21 @@ supabase/migrations/
 ```
 
 ### Template de reseña
+Nombre en Twilio: `medano_review_request_4`
+SID: `HX9cdb22e28be112f5020f1a412da0f88f`
+
 ```
-"Hola {{1}}, gracias por tu visita a {{2}} 🙌 ¿Cómo estuvo? Si la pasaste bien,
-nos ayudaría mucho que lo cuentes acá: {{3}} — ¡Muchas gracias!"
+Hola {{1}}, gracias por tu visita.
+Gracias por elegirnos. Nos ayuda mucho que escribas 
+una reseña en Google — te toma menos de un minuto.
+Así podemos seguir mejorando nuestra atención.
+¡Muchas gracias!
+{{2}}
+👇 Dejanos tu reseña acá 👇
+{{3}}
 ```
 - `{{1}}` = customer_name
-- `{{2}}` = org.name
+- `{{2}}` = org.name (firma del negocio)
 - `{{3}}` = location.review_link (si se eligió sucursal) o org.review_link
 
 ### Ciclo de vida de un mensaje (status en message_logs)
@@ -868,6 +878,38 @@ bloquear el orden de arriba.
    recomendaciones informativas, no como producto.
 5. **DataTrackers sí tiene listings management** vía RT — no duplicar 
    en Medano.
+
+---
+
+## Aprendizajes — sesión 23 abril 2026
+
+- **Segundo template aprobado — `medano_review_request_4`**: copy 
+  rediseñado con CTA visual al final (emoji 👇 + link en línea propia). 
+  Firma del negocio en medio, link como última línea para que el 
+  OpenGraph preview de Google Maps actúe como CTA visual complementario.
+
+- **Cambiar SID sin tocar código**: cuando el copy se mantiene con la 
+  misma cantidad y mapeo de variables posicionales, migrar entre 
+  templates aprobados es actualizar TWILIO_TEMPLATE_SID en Netlify + 
+  redeploy. No requiere release de código ni coordinación atómica 
+  commit/env var. Agilidad para iterar copy sin ciclo de dev.
+
+- **Short URLs con redirect 302 rompen en WhatsApp mobile**: probado 
+  con app.datatrackers. En WhatsApp mobile falla por el in-app browser: 
+  Google detecta el redirect y rompe el login necesario para dejar la 
+  reseña. Decisión: link `maps?cid=` crudo siempre en las variables 
+  del template, nunca redirect intermedio. Click tracking de Fase 10 
+  se resuelve por otra vía — correlación con GBP API en Fase 16, o 
+  descartado. El KPI que importa al cliente no es clicks, es reseñas 
+  nuevas en Google Maps.
+
+- **Segunda versión del template como ciclo natural**: el primero 
+  validó circuito técnico end-to-end. El segundo es el primero pensado 
+  para conversión. Para próximos clientes de verticales distintos a 
+  clínica (restaurantes, retail) evaluar si este copy formal convierte 
+  o conviene un tercer template más conversacional con gancho tipo 
+  "¿Cómo estuvo?". Registrar conversión del piloto antes de sumar 
+  verticales.
 
 ---
 
