@@ -134,9 +134,11 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
     bugs abiertos abajo.
   - ⏸ Escenario opt-out (respuesta BAJA) NO probado todavía. Se prueba 
     junto con el fix del bug en la próxima sesión.
-- [ ] Submit del template de rating (1-5) en Twilio Console — pendiente. 
-  Confirmar si se hizo durante la sesión del 14 mayo o queda como tarea 
-  para la próxima.
+- [x] Template de rating (1-5) submitido a Meta a través de Twilio el 
+  14 mayo 2026 — esperando aprobación. Categoría intentada: Utility 
+  (encuesta post-servicio); si Meta lo rechaza, resubmetir como Marketing. 
+  SID del template asignado al aprobarse — cargar en Netlify como 
+  TWILIO_TEMPLATE_RATING_SID.
 
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
@@ -1226,6 +1228,34 @@ guarda en `message_logs` y cómo lo busca el webhook al recuperar `lastLog`.
 - En el dashboard, el phone aparece como `+5491173616189` (con `+`) — 
   ambigüedad: puede ser formateo visual del componente o reflejo del 
   valor literal de la DB.
+- **Verificación empírica en Supabase Table Editor (15 mayo 2026):** 
+  el campo `phone` en `message_logs` se guarda SIN el `+` y SIN el prefijo 
+  `whatsapp:`. Formato literal del row más reciente: `5491173616189`. 
+  **Coincide exactamente con el formato que usa el webhook para la query 
+  de lastLog** (`fromPhone` después de `.replace('whatsapp:+', '')`). 
+  La hipótesis de mismatch de formato queda descartada — el bug tiene 
+  otra causa raíz.
+- **Hipótesis nueva más probable: race condition con webhook de status.** 
+  Twilio puede estar enviando un evento de status `read` DESPUÉS del 
+  webhook de inbound. Secuencia hipotética:
+  1. Usuario responde el mensaje
+  2. Twilio dispara webhook inbound → handler procesa el reply → 
+     `UPDATE status = 'reply_received'` se ejecuta correctamente
+  3. Twilio dispara webhook de status `read` (porque el usuario también 
+     leyó el mensaje original al abrirlo para responder)
+  4. El handler de status sobreescribe el status a `read`, perdiendo 
+     el `reply_received` recién seteado
+
+  Esta hipótesis explica por qué el resto del path funciona (forwarding 
+  y respuesta automática llegan, porque están antes en el flujo) pero el 
+  status queda en `read`. El refactor del 14 mayo probablemente NO 
+  introdujo este bug sino que lo expuso al consolidar el orden de 
+  operaciones.
+- **Posible vector alternativo:** la condición `if (lastLog)` que envuelve 
+  el UPDATE de `reply_received` (línea ~138 del webhook) puede estar 
+  fallando si `lastLog` queda en `null` por otra razón (ej. la query 
+  .maybeSingle() con .limit(1) trayendo otro row, o un filtro extra). 
+  Necesita console.log de diagnóstico.
 
 **Acciones pendientes para resolver:**
 1. Verificar el formato real del campo `phone` en `message_logs` abriendo 
@@ -1248,16 +1278,37 @@ lo que rompe la visibilidad operativa del cliente.
 
 ## TODO próxima sesión (post 15 mayo 2026)
 
-**Prioridad 1 — Cerrar Bug #1:**
-1. Verificar formato real de `phone` en `message_logs` (Supabase Table 
-   Editor)
-2. Verificar formato del `phone` que inserta `send/route.ts`
-3. Alinear ambos lados y deployar fix
-4. Re-validar escenario 2 (badge `reply_received` cambia correctamente)
-5. Validar escenario 3 (opt-out BAJA actualiza blacklist)
+**Prioridad 1 — Cerrar Bug #1 (causa raíz NO es formato de teléfono):**
+
+1. Agregar console.log de diagnóstico en el webhook después de la query 
+   de lastLog para confirmar empíricamente si lastLog viene con datos o 
+   en null cuando se procesa un inbound:
+   `console.log('[webhook-debug] lastLog:', lastLog ? lastLog.id : 'null', 'phone:', fromPhone, 'org:', waba.org_id)`
+
+2. Disparar un test (envío + respuesta desde número personal) y revisar 
+   logs de Netlify (Functions → twilio webhook → últimas invocaciones) 
+   para ver:
+   - Si lastLog se encontró o vino null
+   - El orden cronológico de webhooks que llegan después de la respuesta 
+     del usuario (inbound vs status read)
+
+3. Según resultado del diagnóstico:
+   - Si lastLog es null → query falla por otra razón (filtros, RLS, 
+     formato), investigar.
+   - Si lastLog tiene datos pero el UPDATE no persiste → race condition 
+     confirmada con webhook de status. Solución: hacer el UPDATE 
+     condicional (`UPDATE message_logs SET status = 'reply_received' 
+     WHERE id = X AND status NOT IN ('reply_received')`) y aplicar la 
+     misma condición invertida en el handler de status webhook (no 
+     sobreescribir `reply_received` con `read`).
+
+4. Una vez resuelto, re-validar escenario 2 (badge cambia a 
+   `reply_received` en dashboard).
+
+5. Validar escenario 3 (opt-out BAJA actualiza blacklist y log a `blocked`).
 
 **Prioridad 2 — Template de rating:**
-1. Confirmar si fue submitido el 14 mayo o submeterlo ahora
+1. Esperar aprobación de Meta del template submitido el 14 mayo
 2. Cuando Meta apruebe: cargar `TWILIO_TEMPLATE_RATING_SID` en Netlify
 3. Cambiar `FLOW_CONVERSATIONAL_ENABLED=true` en Netlify
 4. Validar end-to-end del flujo nuevo: envío de pregunta de rating → 
