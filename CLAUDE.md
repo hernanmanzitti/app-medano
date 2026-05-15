@@ -43,6 +43,8 @@ NEXT_PUBLIC_WABA_MOCK=true              # Activar mock de WABA en desarrollo (om
 TWILIO_ACCOUNT_SID=                     # Master account SID
 TWILIO_AUTH_TOKEN=                      # Master auth token
 TWILIO_TEMPLATE_SID=                    # SID del template aprobado en Twilio
+TWILIO_TEMPLATE_RATING_SID=            # SID del template de rating (pendiente aprobación Meta)
+FLOW_CONVERSATIONAL_ENABLED=false      # Feature flag para activar el flujo de rating (off por default)
 TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido entre todos los clientes)
 ```
 
@@ -98,6 +100,24 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Sidebar colapsado oculta: nombre de la organización, labels de los links (se muestran via tooltip nativo `title`), bloque "¿Necesitás ayuda?" y label del logout. Solo quedan íconos centrados.
 - [x] SidebarProvider (components/sidebar-context.tsx) expone { collapsed, toggle } para que el layout ajuste el margen izquierdo del main sin sincronización manual vía localStorage.
 - [ ] Sidebar colapsado — tratamiento del logo: refinar con iso dedicado (public/logo-medano-iso.png) para que quede legible en 64px. Por ahora el logo actual se mantiene sin cambios de tamaño dentro del rail, con overflow-hidden en el contenedor.
+- [ ] Template C "envío directo mejorado" submetido a Meta el 14 mayo 2026 
+  — pendiente aprobación. Copy:
+  ```
+  Hola {{1}}, gracias por elegir {{2}}.
+  
+  Contanos cómo fue tu experiencia:
+  {{3}}
+  
+  Para no recibir más mensajes, respondé BAJA.
+  ```
+  Reemplaza el actual medano_review_request_4 cuando esté aprobado. Cambios 
+  vs el actual: link en línea 3 (antes del Read more de WhatsApp mobile), 
+  tono "compartí experiencia" en lugar de "pedir ayuda", cuerpo más corto.
+
+- [x] Fase 7 (parte 4): Flujo conversacional de rating con bifurcación 
+  — infraestructura implementada con feature flag FLOW_CONVERSATIONAL_ENABLED. 
+  Activación pendiente de aprobación del template de rating por Meta.
+
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
@@ -179,6 +199,17 @@ Infra compartida (~$50 Supabase + hosting) se divide entre clientes activos. Bre
 ### Template
 - Clasificado por Meta como **marketing** ($0.0618/msg en Argentina). No es reclasificable a utility.
 - Aprobado. En uso. No cambiar sin re-aprobación.
+
+### Templates aprobados y en proceso (al 14 mayo 2026)
+
+- `medano_review_request_4` (HX9cdb22e28be112f5020f1a412da0f88f) — 
+  ACTIVO en producción. Aprobado 23 abril 2026.
+- Template C "envío directo mejorado" — SUBMETIDO 14 mayo 2026, 
+  esperando aprobación Meta. Mejora del actual con link en línea 3 
+  y tono "contanos experiencia".
+- Template de rating (1-5) para flujo conversacional — POR SUBMETEAR. 
+  Intentar primero como Utility (encuesta post-servicio), si Meta 
+  rechaza, reenviar como Marketing.
 
 ### Técnicas
 - Auth con `@supabase/ssr` (no `auth-helpers-nextjs`, deprecated para App Router)
@@ -393,6 +424,162 @@ Cuando el usuario final responde al mensaje con texto libre (en lugar de hacer c
 Nuevo campo en `organizations`: `forwarding_number TEXT` (con código de país, nullable)
 
 Nuevo campo en Settings (sección 3.5 del PRD): input de teléfono para `forwarding_number`
+
+---
+
+## Módulo: Flujo conversacional de rating con bifurcación (Fase 7 parte 4 — pendiente)
+
+Evolución de la Fase 7 (envío múltiple). Reemplaza el envío directo del 
+link por un flujo de 2 mensajes que primero pregunta calificación 1-5 y 
+después bifurca según la respuesta. La Fase 7 parte 3 (envíos programados) 
+quedó descartada anteriormente — esta parte 4 retoma la numeración como 
+siguiente evolución del módulo de envío.
+
+Objetivo: mejorar tasa de conversión y capturar feedback negativo antes 
+de que se vuelva una reseña pública negativa.
+
+**Hipótesis de negocio:**
+- La tasa de conversión actual del flujo de envío directo es baja (medirlo 
+  formalmente con piloto COBA pendiente)
+- Truncado del template en WhatsApp mobile esconde el link debajo del 
+  "Read more" (resuelto parcialmente con template C)
+- Filtro de intent: quien responde "5" está pre-comprometido a clickear; 
+  conversión sobre respondedores >> conversión directa
+- Capturar reviews negativas offline (vía forwarding_number) protege 
+  rating público de COBA y otros clientes — especialmente crítico para 
+  servicios médicos
+
+**Flujo:**
+
+```
+Mensaje 1 (template business-initiated):
+  COBA carga contacto → send/route.ts manda TEMPLATE_RATING
+  Guarda message_log con flow_step = 'rating_asked'
+                ↓
+Usuario responde "5"
+                ↓
+Webhook detecta inbound
+  Busca último message_log del teléfono
+  Si flow_step = 'rating_asked' AND ahora - created_at < 24hs:
+    parsea rating (1-5) con parseo flexible
+    guarda satisfaction_score
+    bifurca:
+      score 4-5 → manda link review (free-form, gratis en service window)
+                  flow_step = 'link_sent'
+      score 1-3 → manda mensaje de feedback (free-form, gratis)
+                  reenvía a forwarding_number con formato diferenciado
+                  flow_step = 'feedback_received'
+                  espera siguiente mensaje del usuario con detalles
+```
+
+**Copy de mensajes:**
+
+Template nuevo de rating (a submeter como Utility primero, fallback a Marketing):
+```
+Hola {{1}}, gracias por tu visita a {{2}}.
+
+¿Cómo calificarías tu experiencia? Respondé con un número del 1 al 5.
+
+5 - Excelente
+4 - Muy buena
+3 - Regular  
+2 - Mala
+1 - Muy mala
+
+Para no recibir más mensajes, respondé BAJA.
+```
+
+Free-form al usuario con rating 4-5:
+```
+¡Gracias {{customer_name}}! 🙌
+
+Compartí tu experiencia en Google:
+{{review_link}}
+```
+
+Free-form al usuario con rating 1-3:
+```
+Gracias por tu sinceridad, {{customer_name}}.
+
+Queremos entender qué pasó. ¿Nos contás brevemente qué no estuvo bien? 
+Tu mensaje llega directo al equipo de {{org_name}}.
+```
+
+Reenvío al forwarding_number cuando hay feedback negativo:
+```
+Feedback negativo (⭐ {score}/5) de +{phone} para {{org_name}}:
+"{user_message}"
+```
+
+**Decisiones tomadas:**
+
+- Corte: 4-5 = positivo (manda link); 1-3 = negativo (feedback offline)
+- Todos los feedbacks negativos se loguean con satisfaction_score en 
+  message_logs para que COBA pueda revisar histórico
+- Mencionar org_name (COBA) explícitamente en mensaje al usuario — 
+  refuerza confianza
+- Template C "envío directo mejorado" se mantiene aprobado en paralelo 
+  como fallback / opción de flujo simple
+- Selector "envío directo vs flujo conversacional" en dashboard: 
+  decisión post-aprobación de ambos templates
+
+**Cambios en schema:**
+
+```sql
+ALTER TABLE message_logs 
+  ADD COLUMN flow_step TEXT,
+  -- 'rating_asked' | 'rating_received' | 'link_sent' | 'feedback_received' | 'completed'
+  ADD COLUMN satisfaction_score INT;  -- 1-5, null si no aplica
+```
+
+No hace falta tabla nueva. message_logs ya tiene phone + org_id + 
+created_at, suficiente para reconstruir el estado del flujo.
+
+**Cambios en código:**
+
+1. `send/route.ts`: nueva variable `TWILIO_TEMPLATE_RATING_SID` para el 
+   template de pregunta de rating. Al insertar en message_logs, setear 
+   `flow_step: 'rating_asked'`. Mantener envío legacy con template C 
+   para retrocompatibilidad / opción seleccionable.
+
+2. `webhook/twilio/route.ts`: agregar rama de "flujo activo" ANTES de la 
+   detección de opt-out y ANTES del forwarding genérico:
+   - Buscar último message_log del teléfono dentro de la org
+   - Si flow_step = 'rating_asked' AND created_at > now - 24h:
+     - parsear rating (flexible: números, "excelente/muy bien/bien/regular/mal")
+     - bifurcar y mandar free-form correspondiente
+     - actualizar flow_step y satisfaction_score
+     - return temprano (no procesar opt-out ni forwarding genérico)
+   - Si flow_step = 'feedback_received' AND created_at > now - 24h:
+     - el mensaje es el detalle del feedback negativo
+     - reenviar a forwarding_number con formato diferenciado
+     - actualizar flow_step = 'completed'
+     - return temprano
+
+3. `message-logs-table.tsx`: agregar columna visual de satisfaction_score 
+   con badges de color (verde 4-5, amarillo 3, rojo 1-2). Filtros por 
+   rating para que COBA pueda revisar los negativos rápido.
+
+**Edge cases:**
+
+- Respuesta no parseable ("muy bien", "ok", "👍"): parseo flexible con 
+  mapa básico (excelente→5, muy bien→4, bien→3, regular→2, mal→1). 
+  Si no matchea ninguna entrada → ignorar, no responder, dejar flujo 
+  abierto hasta timeout.
+
+- Respuesta fuera del service window de 24hs: service window cerrado, 
+  no se puede mandar free-form. Loguear el caso y descartar. Si llega 
+  a ser frecuente revisarlo después.
+
+- Múltiples respuestas seguidas del mismo usuario: solo procesar la 
+  primera dentro del flujo. Las siguientes caen al path genérico 
+  (forwarding si está configurado).
+
+- **Opt-out automático suspendido durante flujo activo**: el detector 
+  actual de palabras clave (stop, baja, no, cancelar, salir, nomasinfo) 
+  NO debe ejecutarse si hay un flow_step activo. Sin esta protección, 
+  un usuario que respondió "1" y después escribe "no fue buena la 
+  atención" quedaría bloqueado por error.
 
 ---
 
@@ -865,6 +1052,14 @@ bloquear el orden de arriba.
   a LATAM se prioriza con Fase 14 (el diferenciador más visible y rápido), 
   no con Fase 16 (el más largo y riesgoso).
 
+**Prioridad operativa intercalada (Fase 7 parte 4):** el flujo conversacional 
+de rating con bifurcación se ejecuta en paralelo a Fase 13 (Billing) o 
+inmediatamente después, antes de empezar Fase 14. Es mejora del producto 
+core — no compite con el roadmap estratégico de AI/visibility sino que lo 
+habilita: sin buena conversión del motor de captación, los add-ons 
+estratégicos no tienen base sobre la cual venderse. Tiempo estimado: 
+1-2 semanas de dev con Claude Code.
+
 ### Decisiones tomadas (sesión 19 abril 2026)
 
 1. **Medano se reposiciona como vehículo de innovación AI del stack** 
@@ -910,6 +1105,54 @@ bloquear el orden de arriba.
   o conviene un tercer template más conversacional con gancho tipo 
   "¿Cómo estuvo?". Registrar conversión del piloto antes de sumar 
   verticales.
+
+---
+
+## Aprendizajes — sesión 14 mayo 2026
+
+- **WhatsApp pricing per-message (post julio 2025)**: Meta cambió de 
+  pricing por conversación de 24hs a per-message. Templates marketing 
+  y authentication se cobran por mensaje entregado. Templates utility 
+  son gratis dentro del customer service window (24hs después de que 
+  el usuario te escribe). Mensajes free-form son SIEMPRE gratis dentro 
+  del service window. Implicancia para Medano: el segundo mensaje del 
+  flujo conversacional (link o feedback) es free-form, sale dentro de 
+  la respuesta del usuario, costo Meta = $0 (solo $0.005 Twilio).
+
+- **Costo comparativo flujo directo vs conversacional**: asumiendo 50% 
+  de tasa de respuesta al rating, costo por intento es prácticamente 
+  igual: $0.069 conversacional vs $0.0668 directo. Diferencia 
+  irrelevante. Si el template de rating se aprueba como Utility en 
+  lugar de Marketing, el costo del flujo conversacional baja a 
+  ~$0.012/intento (ahorro 80%+).
+
+- **Truncado de WhatsApp mobile**: el "Read more" aparece típicamente 
+  entre las líneas 3-4 del mensaje en mobile. Todo lo que esté debajo 
+  requiere un click extra del usuario para ver. Regla: el call-to-action 
+  principal (link, número, botón) debe estar antes de la línea 4.
+
+- **Tono del CTA**: "pedir ayuda" performa peor que "invitar a compartir 
+  experiencia". Pone al usuario en posición de favor en lugar de 
+  posición de voz. Para servicios médicos especialmente, el tono debe 
+  ser de "te escuchamos" no de "ayudanos". Copy testeado:
+  - ❌ "¿Nos ayudás con una reseña?"
+  - ✅ "Contanos cómo fue tu experiencia"
+
+- **Tres mensajes vs dos en flujo conversacional**: agregar un paso 
+  intermedio de "querés dejar reseña? sí/no" antes de mandar el link 
+  reduce conversión total ~30-50% sin agregar información útil. 
+  El flujo eficiente es 2 mensajes: pregunta rating → respuesta 
+  bifurcada con link directo o feedback. Si el usuario responde 5, ya 
+  está dando consentimiento implícito.
+
+- **Review gating "ligero" es práctica estándar y permitida**: Google 
+  prohíbe gating estricto (bloquear a usuarios negativos de dejar 
+  reseña), pero ofrecer feedback offline como primer paso a usuarios 
+  insatisfechos NO es gating estricto siempre que el usuario que 
+  insiste en ir a Google pueda hacerlo. Birdeye, Podium y Trustpilot 
+  usan este patrón. Para clínica médica como COBA es especialmente 
+  valioso: una reseña negativa de 1 estrella sobre una experiencia 
+  médica es catastrófica para la captación.
 
 ---
 

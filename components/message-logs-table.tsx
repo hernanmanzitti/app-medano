@@ -7,6 +7,7 @@ interface MessageLog {
   status: string
   created_at: string
   locations: { name: string }[] | null
+  satisfaction_score?: number | null
 }
 
 interface Props {
@@ -40,6 +41,7 @@ export function MessageLogsTable({ logs }: Props) {
             <th className="pb-2 pr-4 font-medium">Cliente</th>
             <th className="pb-2 pr-4 font-medium">Teléfono</th>
             <th className="pb-2 pr-4 font-medium">Sucursal</th>
+            <th className="pb-2 pr-4 font-medium">Rating</th>
             <th className="pb-2 pr-4 font-medium">Fecha</th>
             <th className="pb-2 font-medium">Estado</th>
           </tr>
@@ -47,6 +49,15 @@ export function MessageLogsTable({ logs }: Props) {
         <tbody className="divide-y divide-[#eceef8]">
           {logs.map((log) => {
             const badge = STATUS_LABEL[log.status] ?? STATUS_LABEL.pending
+            const score = log.satisfaction_score ?? null
+            const ratingBadge = score === null
+              ? null
+              : score >= 4
+                ? { className: 'bg-green-100 text-green-800', label: `⭐ ${score}` }
+                : score === 3
+                  ? { className: 'bg-yellow-100 text-yellow-800', label: `⭐ ${score}` }
+                  : { className: 'bg-red-100 text-red-800', label: `⭐ ${score}` }
+
             return (
               <tr key={log.id} className="hover:bg-[#f4f5fb]">
                 <td className="py-2.5 pr-4 font-medium text-[#00246b] whitespace-nowrap">
@@ -57,6 +68,12 @@ export function MessageLogsTable({ logs }: Props) {
                 </td>
                 <td className="py-2.5 pr-4 text-[#646caa] whitespace-nowrap">
                   {log.locations?.[0]?.name ?? <span className="text-[#b4b7d9]">—</span>}
+                </td>
+                <td className="py-2.5 pr-4 whitespace-nowrap">
+                  {ratingBadge
+                    ? <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${ratingBadge.className}`}>{ratingBadge.label}</span>
+                    : <span className="text-[#b4b7d9] text-xs">—</span>
+                  }
                 </td>
                 <td className="py-2.5 pr-4 text-[#b4b7d9] whitespace-nowrap">
                   {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')}

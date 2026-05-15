@@ -42,11 +42,18 @@ async function dispatchToTwilio(
   customerName: string,
   fullPhone: string,
   wabaSubaccountSid: string,
-  wabaPhoneNumber: string
+  wabaPhoneNumber: string,
+  useRatingFlow = false
 ): Promise<{ wamId: string | null; error: string | null }> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID!
   const authToken = process.env.TWILIO_AUTH_TOKEN!
-  const templateSid = process.env.TWILIO_TEMPLATE_SID!
+
+  const flowEnabled = process.env.FLOW_CONVERSATIONAL_ENABLED === 'true'
+  const ratingSid = process.env.TWILIO_TEMPLATE_RATING_SID
+  const templateSid =
+    flowEnabled && useRatingFlow && ratingSid
+      ? ratingSid
+      : process.env.TWILIO_TEMPLATE_SID!
 
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${wabaSubaccountSid}/Messages.json`
 
@@ -90,7 +97,11 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { customer_name, phone, location_id, contacts } = body
+  const { customer_name, phone, location_id, contacts, useRatingFlow = false } = body
+
+  const flowEnabled = process.env.FLOW_CONVERSATIONAL_ENABLED === 'true'
+  const ratingSid = process.env.TWILIO_TEMPLATE_RATING_SID
+  const activeRatingFlow = flowEnabled && !!ratingSid && useRatingFlow === true
 
   const isBatch = Array.isArray(contacts) && contacts.length > 0
 
@@ -179,7 +190,8 @@ export async function POST(request: Request) {
         (customer_name as string).trim(),
         fullPhone,
         waba.twilio_subaccount_sid,
-        waba.phone_number
+        waba.phone_number,
+        activeRatingFlow
       )
       if (result.error) {
         messageStatus = 'failed'
@@ -197,6 +209,7 @@ export async function POST(request: Request) {
       error: errorDetail,
       wam_id: wamId,
       location_id: location_id ?? null,
+      flow_step: activeRatingFlow ? 'rating_asked' : null,
     })
 
     if (messageStatus === 'failed') {
@@ -249,7 +262,8 @@ export async function POST(request: Request) {
         (cName as string).trim(),
         fullPhone,
         waba.twilio_subaccount_sid,
-        waba.phone_number
+        waba.phone_number,
+        activeRatingFlow
       )
       if (result.error) {
         messageStatus = 'failed'
@@ -267,6 +281,7 @@ export async function POST(request: Request) {
       error: errorDetail,
       wam_id: wamId,
       location_id: location_id ?? null,
+      flow_step: activeRatingFlow ? 'rating_asked' : null,
     }
     console.log('Batch insert — payload:', insertPayload)
     const { error: insertError } = await getServiceClient().from('message_logs').insert(insertPayload)

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createHmac, timingSafeEqual } from 'crypto'
+import { parseRating } from '@/lib/rating'
+import { sendFreeForm } from '@/lib/twilio'
 
 function getServiceClient() {
   return createServiceClient(
@@ -102,40 +104,8 @@ export async function POST(request: Request) {
   const fromNumber = bodyParams.get('From')
   const toNumber = bodyParams.get('To')
 
-  // ── Detección de opt-out (mensaje entrante del usuario final) ──────────────
+  // ── Mensaje entrante del usuario final ────────────────────────────────────
   if (incomingBody && fromNumber && toNumber && (!messageStatus || messageStatus === 'received')) {
-    const normalizedText = incomingBody.toLowerCase().replace(/\s+/g, '')
-    const isOptOut = OPT_OUT_KEYWORDS.some((kw) => normalizedText.includes(kw))
-
-    if (isOptOut) {
-      // fromNumber = "whatsapp:+5491155441234" → "5491155441234"
-      const fromPhone = fromNumber.replace('whatsapp:+', '')
-      // toNumber = "whatsapp:+13659063072" → "+13659063072"
-      const toPhone = toNumber.replace('whatsapp:', '')
-
-      const serviceClient = getServiceClient()
-
-      // Buscar la org por el número destino (nuestro número en waba_connections)
-      const { data: waba } = await serviceClient
-        .from('waba_connections')
-        .select('org_id')
-        .eq('phone_number', toPhone)
-        .eq('status', 'active')
-        .single()
-
-      if (waba) {
-        await serviceClient
-          .from('blacklist')
-          .upsert(
-            { org_id: waba.org_id, phone: fromPhone, origin: 'automatic' },
-            { onConflict: 'org_id,phone' }
-          )
-      }
-
-      return buildTwimlResponse('Listo, te dimos de baja. No recibirás más mensajes de nuestra parte.')
-    }
-
-    // Mensaje entrante — reply forwarding
     const fromPhone = fromNumber.replace('whatsapp:+', '')
     const toPhone = toNumber.replace('whatsapp:', '')
 
@@ -166,59 +136,194 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    // Marcar el message_log más reciente de ese número como reply_received
-    const { data: recentLog } = await serviceClient
+    // Buscar el último message_log del teléfono para este org (una sola query)
+    const { data: lastLog } = await serviceClient
       .from('message_logs')
-      .select('id')
+      .select('id, flow_step, satisfaction_score, customer_name, location_id, created_at')
       .eq('org_id', waba.org_id)
       .eq('phone', fromPhone)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    if (recentLog) {
+    const ageMs = lastLog ? Date.now() - new Date(lastLog.created_at).getTime() : Infinity
+    const within24h = ageMs < 24 * 60 * 60 * 1000
+
+    // ── RAMA DE FLUJO CONVERSACIONAL (solo cuando el flag está activo) ────────
+    if (process.env.FLOW_CONVERSATIONAL_ENABLED === 'true') {
+      const activeFlowStep = lastLog?.flow_step as string | null | undefined
+      const isInActiveFlow = within24h && (activeFlowStep === 'rating_asked' || activeFlowStep === 'feedback_received')
+
+      // ─── Rama A: respuesta al rating ────────────────────────────────────────
+      if (activeFlowStep === 'rating_asked' && within24h) {
+        const score = parseRating(incomingBody)
+
+        if (score === null) {
+          console.log('[rating-flow] respuesta no parseable, flujo abierto:', incomingBody)
+          return new Response('OK', { status: 200 })
+        }
+
+        // Resolver review_link: sucursal del log original o link de la org
+        let reviewLink: string | null = null
+        if (lastLog?.location_id) {
+          const { data: loc } = await serviceClient
+            .from('locations')
+            .select('review_link')
+            .eq('id', lastLog.location_id)
+            .single()
+          reviewLink = loc?.review_link ?? null
+        }
+        if (!reviewLink) {
+          const { data: orgFull } = await serviceClient
+            .from('organizations')
+            .select('review_link')
+            .eq('id', waba.org_id)
+            .single()
+          reviewLink = orgFull?.review_link ?? null
+        }
+
+        const customerName = lastLog?.customer_name ?? ''
+        const fromWhatsapp = `whatsapp:${waba.phone_number}`
+        const toWhatsapp = `whatsapp:+${fromPhone}`
+
+        if (score >= 4) {
+          console.log(`[rating-flow] score ${score} → positivo, enviando link`)
+          const body =
+            `¡Gracias ${customerName}! 🙌\n\n` +
+            `Compartí tu experiencia en Google:\n${reviewLink ?? ''}`
+          try {
+            await sendFreeForm({ subaccountSid: waba.twilio_subaccount_sid, from: fromWhatsapp, to: toWhatsapp, body })
+          } catch (err) {
+            console.error('[rating-flow] error enviando link:', err)
+          }
+          await serviceClient
+            .from('message_logs')
+            .update({ flow_step: 'link_sent', satisfaction_score: score, status: 'reply_received' })
+            .eq('id', lastLog!.id)
+        } else {
+          console.log(`[rating-flow] score ${score} → negativo, pidiendo detalle`)
+          const body =
+            `Gracias por tu sinceridad, ${customerName}.\n\n` +
+            `Queremos entender qué pasó. ¿Nos contás brevemente qué no estuvo bien? ` +
+            `Tu mensaje llega directo al equipo de ${org.name}.`
+          try {
+            await sendFreeForm({ subaccountSid: waba.twilio_subaccount_sid, from: fromWhatsapp, to: toWhatsapp, body })
+          } catch (err) {
+            console.error('[rating-flow] error enviando solicitud feedback:', err)
+          }
+          await serviceClient
+            .from('message_logs')
+            .update({ flow_step: 'feedback_received', satisfaction_score: score, status: 'reply_received' })
+            .eq('id', lastLog!.id)
+        }
+
+        return new Response('OK', { status: 200 })
+      }
+
+      // ─── Rama B: detalle del feedback negativo ───────────────────────────────
+      if (activeFlowStep === 'feedback_received' && within24h) {
+        console.log('[rating-flow] detalle de feedback negativo recibido')
+        const score = lastLog?.satisfaction_score ?? null
+        const customerName = lastLog?.customer_name ?? ''
+        const fromWhatsapp = `whatsapp:${waba.phone_number}`
+        const toWhatsapp = `whatsapp:+${fromPhone}`
+
+        if (org.forwarding_number) {
+          const fwdBody =
+            `Feedback negativo (⭐ ${score}/5) de +${fromPhone} para ${org.name}:\n"${incomingBody}"`
+          try {
+            await sendFreeForm({
+              subaccountSid: waba.twilio_subaccount_sid,
+              from: fromWhatsapp,
+              to: `whatsapp:${org.forwarding_number}`,
+              body: fwdBody,
+            })
+            console.log('[rating-flow] feedback reenviado a forwarding_number')
+          } catch (err) {
+            console.error('[rating-flow] error reenviando feedback:', err)
+          }
+        }
+
+        try {
+          await sendFreeForm({
+            subaccountSid: waba.twilio_subaccount_sid,
+            from: fromWhatsapp,
+            to: toWhatsapp,
+            body: `Gracias por contarnos, ${customerName}. Tu mensaje llegó al equipo.`,
+          })
+        } catch (err) {
+          console.error('[rating-flow] error enviando ack al usuario:', err)
+        }
+
+        await serviceClient
+          .from('message_logs')
+          .update({ flow_step: 'completed', status: 'reply_received' })
+          .eq('id', lastLog!.id)
+
+        return new Response('OK', { status: 200 })
+      }
+
+      // ─── Protección: suspender opt-out automático durante flujo activo ───────
+      // Si isInActiveFlow=true, saltear detección de keywords para evitar que
+      // "no fue buena la atención" bloquee al usuario por error.
+      if (isInActiveFlow) {
+        console.log('[rating-flow] flujo activo — saltando detección de opt-out')
+        // Cae al forwarding genérico abajo (sin opt-out check)
+      } else {
+        // ── Detección de opt-out (solo si NO hay flujo activo) ──────────────
+        const normalizedText = incomingBody.toLowerCase().replace(/\s+/g, '')
+        const isOptOut = OPT_OUT_KEYWORDS.some((kw) => normalizedText.includes(kw))
+
+        if (isOptOut) {
+          await serviceClient
+            .from('blacklist')
+            .upsert(
+              { org_id: waba.org_id, phone: fromPhone, origin: 'automatic' },
+              { onConflict: 'org_id,phone' }
+            )
+          return buildTwimlResponse('Listo, te dimos de baja. No recibirás más mensajes de nuestra parte.')
+        }
+      }
+    } else {
+      // ── Flag apagado: comportamiento legacy completo ────────────────────────
+      const normalizedText = incomingBody.toLowerCase().replace(/\s+/g, '')
+      const isOptOut = OPT_OUT_KEYWORDS.some((kw) => normalizedText.includes(kw))
+
+      if (isOptOut) {
+        await serviceClient
+          .from('blacklist')
+          .upsert(
+            { org_id: waba.org_id, phone: fromPhone, origin: 'automatic' },
+            { onConflict: 'org_id,phone' }
+          )
+        return buildTwimlResponse('Listo, te dimos de baja. No recibirás más mensajes de nuestra parte.')
+      }
+    }
+
+    // ── Forwarding genérico (Fase 9) — se ejecuta si no hubo return temprano ──
+    if (lastLog) {
       await serviceClient
         .from('message_logs')
         .update({ status: 'reply_received' })
-        .eq('id', recentLog.id)
+        .eq('id', lastLog.id)
     }
 
     if (org.forwarding_number) {
-      const accountSid = process.env.TWILIO_ACCOUNT_SID!
-      const authToken = process.env.TWILIO_AUTH_TOKEN!
       const forwardMessage = `Mensaje de +${fromPhone} para ${org.name}: ${incomingBody}`
-
       console.log('Webhook — reenviando a:', org.forwarding_number, '| mensaje:', forwardMessage)
 
-      const forwardParams = new URLSearchParams({
-        To: `whatsapp:${org.forwarding_number}`,
-        From: `whatsapp:${waba.phone_number}`,
-        Body: forwardMessage,
-      })
-
       try {
-        const res = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${waba.twilio_subaccount_sid}/Messages.json`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: 'Basic ' + btoa(`${accountSid}:${authToken}`),
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: forwardParams.toString(),
-          }
-        )
-        if (!res.ok) {
-          const detail = await res.text()
-          console.error('Webhook — error reenviando respuesta:', detail)
-        } else {
-          console.log('Webhook — reenvío OK')
-        }
+        await sendFreeForm({
+          subaccountSid: waba.twilio_subaccount_sid,
+          from: `whatsapp:${waba.phone_number}`,
+          to: `whatsapp:${org.forwarding_number}`,
+          body: forwardMessage,
+        })
+        console.log('Webhook — reenvío OK')
       } catch (err) {
-        console.error('Webhook — excepción al reenviar:', err)
+        console.error('Webhook — error reenviando respuesta:', err)
       }
 
-      // Responder al usuario final con link wa.me al forwarding_number
       const waNumber = org.forwarding_number.replace(/\D/g, '')
       const autoReply =
         `Gracias por tu mensaje.\n\nEste número solo se utiliza para enviar solicitudes de reseñas. ` +
@@ -227,7 +332,6 @@ export async function POST(request: Request) {
       return buildTwimlResponse(autoReply)
     }
 
-    // Sin forwarding_number — responder al usuario final con TwiML
     console.log('Webhook — sin forwarding_number, respondiendo con TwiML a:', fromPhone)
     return buildTwimlResponse(
       'Gracias por tu mensaje.\n\nEste número solo se utiliza para enviar solicitudes de reseñas.'
