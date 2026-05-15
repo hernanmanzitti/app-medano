@@ -117,6 +117,26 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Fase 7 (parte 4): Flujo conversacional de rating con bifurcación 
   — infraestructura implementada con feature flag FLOW_CONVERSATIONAL_ENABLED. 
   Activación pendiente de aprobación del template de rating por Meta.
+- [x] Fase 7 parte 4 (infraestructura) commiteada y deployada — commit 
+  bf52b4c (14 mayo 2026). 7 archivos, 602 inserciones, 72 eliminaciones. 
+  Migración SQL aplicada en Supabase (columnas flow_step + satisfaction_score 
+  + índice condicional sobre message_logs). Feature flag 
+  FLOW_CONVERSATIONAL_ENABLED en `false` por default en Netlify. El código 
+  está en producción pero el flujo nuevo NO está activo todavía.
+- [ ] Validación post-refactor del webhook (legacy intacto) — parcial:
+  - ✅ Envío básico funciona (template medano_review_request_4, status 
+    sent → delivered → read)
+  - ✅ Respuesta automática al usuario funciona (TwiML con link wa.me)
+  - ✅ Forwarding al cliente vía sendFreeForm funciona (llega correctamente 
+    al forwarding_number con formato "Mensaje de +X para Org: ...")
+  - ❌ El UPDATE de status a `reply_received` NO se ejecuta en DB. El row 
+    queda en status `read`. Bug pendiente de resolver — ver sección de 
+    bugs abiertos abajo.
+  - ⏸ Escenario opt-out (respuesta BAJA) NO probado todavía. Se prueba 
+    junto con el fix del bug en la próxima sesión.
+- [ ] Submit del template de rating (1-5) en Twilio Console — pendiente. 
+  Confirmar si se hizo durante la sesión del 14 mayo o queda como tarea 
+  para la próxima.
 
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
@@ -1153,6 +1173,104 @@ estratégicos no tienen base sobre la cual venderse. Tiempo estimado:
   usan este patrón. Para clínica médica como COBA es especialmente 
   valioso: una reseña negativa de 1 estrella sobre una experiencia 
   médica es catastrófica para la captación.
+
+---
+
+## Aprendizajes — sesión 14-15 mayo 2026
+
+- **Refactor dentro de un feature nuevo es riesgo de regresión sutil.** 
+  El commit bf52b4c migró el forwarding genérico (Fase 9) de fetch 
+  inline a usar el nuevo helper `sendFreeForm`. Aunque el comportamiento 
+  visible (mensajes que llegan al cliente y al usuario final) quedó 
+  idéntico, la mecánica interna cambió. Específicamente, el `UPDATE` de 
+  `status = 'reply_received'` se movió de "suelto antes del if" a 
+  "adentro del bloque if (lastLog)". Esto genera el Bug #1 si `lastLog` 
+  vuelve null por cualquier motivo (en este caso, mismatch de formato 
+  de teléfono). Lección: refactors de path crítico deben validarse con 
+  asserts puntuales en DB, no solo con tests end-to-end de UX.
+
+- **Validación post-deploy debe incluir verificación en Supabase, no solo 
+  en UI.** El dashboard puede mostrar valores cacheados o transformados. 
+  El único ground truth es la tabla en Supabase. Próxima vez: parte del 
+  protocolo de validación es siempre abrir la fila del row afectado en 
+  Table Editor.
+
+- **Formato del campo `phone` en `message_logs` debe ser uno y único.** 
+  Cualquier API route, helper o componente que toque ese campo tiene que 
+  usar el mismo formato. Convención a confirmar la próxima sesión: con 
+  o sin `+`, sin `whatsapp:` prefix.
+
+---
+
+## Bugs abiertos
+
+### Bug #1 — Status no cambia a `reply_received` tras inbound (15 mayo 2026)
+
+**Síntoma:** después del commit bf52b4c (Fase 7 parte 4), cuando el usuario 
+final responde al mensaje, el status del row correspondiente en 
+`message_logs` queda en `read` en lugar de pasar a `reply_received`. El 
+resto del path funciona (forwarding al cliente + respuesta automática al 
+usuario llegan correctamente).
+
+**Causa probable:** mismatch de formato del campo `phone` entre cómo se 
+guarda en `message_logs` y cómo lo busca el webhook al recuperar `lastLog`.
+
+**Hallazgos hasta ahora:**
+- Webhook (`app/api/webhooks/twilio/route.ts:109`) extrae el número 
+  como: `const fromPhone = fromNumber.replace('whatsapp:+', '')` → 
+  resultado: `"5491173616189"` (sin `+`, sin `whatsapp:`).
+- Webhook busca lastLog con `.eq('phone', fromPhone)` 
+  (app/api/webhooks/twilio/route.ts:140-147).
+- Claude Code afirma que message_logs se guarda sin `+`, pero NO se 
+  verificó empíricamente en la DB durante esta sesión.
+- En el dashboard, el phone aparece como `+5491173616189` (con `+`) — 
+  ambigüedad: puede ser formateo visual del componente o reflejo del 
+  valor literal de la DB.
+
+**Acciones pendientes para resolver:**
+1. Verificar el formato real del campo `phone` en `message_logs` abriendo 
+   un row reciente en Supabase Table Editor.
+2. Verificar el formato del valor que `send/route.ts` inserta en el campo 
+   `phone` cuando crea el log.
+3. Si hay mismatch: alinear los dos formatos (decidir si guardar con o 
+   sin `+` consistentemente, ajustar el lado que esté roto).
+4. Re-correr el escenario 2 de validación post-refactor: enviar mensaje 
+   → responder → verificar que el badge en el dashboard pasa a 
+   `reply_received` (violeta).
+5. Una vez resuelto, correr el escenario 3 (opt-out BAJA).
+
+**Impacto:** no afecta UX del usuario final (los mensajes siguen llegando 
+correctamente). Solo afecta la trazabilidad en el dashboard de COBA — los 
+envíos respondidos quedan visibles como "Leído" en lugar de "Respondido", 
+lo que rompe la visibilidad operativa del cliente.
+
+---
+
+## TODO próxima sesión (post 15 mayo 2026)
+
+**Prioridad 1 — Cerrar Bug #1:**
+1. Verificar formato real de `phone` en `message_logs` (Supabase Table 
+   Editor)
+2. Verificar formato del `phone` que inserta `send/route.ts`
+3. Alinear ambos lados y deployar fix
+4. Re-validar escenario 2 (badge `reply_received` cambia correctamente)
+5. Validar escenario 3 (opt-out BAJA actualiza blacklist)
+
+**Prioridad 2 — Template de rating:**
+1. Confirmar si fue submitido el 14 mayo o submeterlo ahora
+2. Cuando Meta apruebe: cargar `TWILIO_TEMPLATE_RATING_SID` en Netlify
+3. Cambiar `FLOW_CONVERSATIONAL_ENABLED=true` en Netlify
+4. Validar end-to-end del flujo nuevo: envío de pregunta de rating → 
+   responder con "5" → recibir link en free-form / responder con "1" → 
+   recibir pedido de feedback + reenvío al forwarding_number
+
+**Prioridad 3 — Frontend del flujo nuevo:**
+1. Agregar selector en `/dashboard` para elegir "envío directo" vs 
+   "flujo conversacional" antes de enviar
+2. El frontend manda `useRatingFlow: true` en el body del POST cuando 
+   se elige el flujo conversacional
+3. Por ahora puede ser un toggle simple — UI más refinada queda para 
+   después si el flujo demuestra valor
 
 ---
 
