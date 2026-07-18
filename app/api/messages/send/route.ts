@@ -43,6 +43,7 @@ async function dispatchToTwilio(
   fullPhone: string,
   wabaSubaccountSid: string,
   wabaPhoneNumber: string,
+  wabaTemplateSid: string | null,
   useRatingFlow = false
 ): Promise<{ wamId: string | null; error: string | null }> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID!
@@ -53,7 +54,7 @@ async function dispatchToTwilio(
   const templateSid =
     flowEnabled && useRatingFlow && ratingSid
       ? ratingSid
-      : process.env.TWILIO_TEMPLATE_SID!
+      : (wabaTemplateSid || process.env.TWILIO_TEMPLATE_SID!)
 
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${wabaSubaccountSid}/Messages.json`
 
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
 
   const { data: waba } = await supabase
     .from('waba_connections')
-    .select('api_key, twilio_subaccount_sid, phone_number')
+    .select('api_key, twilio_subaccount_sid, phone_number, template_sid')
     .eq('org_id', org.id)
     .eq('status', 'active')
     .single()
@@ -191,6 +192,7 @@ export async function POST(request: Request) {
         fullPhone,
         waba.twilio_subaccount_sid,
         waba.phone_number,
+        waba.template_sid,
         activeRatingFlow
       )
       if (result.error) {
@@ -263,6 +265,7 @@ export async function POST(request: Request) {
         fullPhone,
         waba.twilio_subaccount_sid,
         waba.phone_number,
+        waba.template_sid,
         activeRatingFlow
       )
       if (result.error) {

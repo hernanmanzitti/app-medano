@@ -47,6 +47,10 @@ function validateTwilioSignature(
   return { valid, computed, sortedParams }
 }
 
+function normalizeWhatsappNumber(raw: string): string {
+  return raw.replace(/^whatsapp:/, '')
+}
+
 export async function POST(request: Request) {
   const rawBody = await request.text()
 
@@ -57,10 +61,32 @@ export async function POST(request: Request) {
   const params: Record<string, string> = {}
   new URLSearchParams(rawBody).forEach((value, key) => { params[key] = value })
 
+  const serviceClient = getServiceClient()
+
+  // Resolver el subaccount dueño de este evento por el número Medano involucrado
+  // (To en un inbound, From en un StatusCallback) para poder validar la firma
+  // con el auth_token de ESE subaccount, no uno hardcodeado.
+  const candidateNumbers = [
+    normalizeWhatsappNumber(params['From'] ?? ''),
+    normalizeWhatsappNumber(params['To'] ?? ''),
+  ].filter(Boolean)
+
+  let waba: { org_id: string; twilio_subaccount_sid: string; phone_number: string; auth_token: string | null } | null = null
+  if (candidateNumbers.length > 0) {
+    const { data } = await serviceClient
+      .from('waba_connections')
+      .select('org_id, twilio_subaccount_sid, phone_number, auth_token')
+      .in('phone_number', candidateNumbers)
+      .eq('status', 'active')
+      .maybeSingle()
+    waba = data
+  }
+
   console.log('Webhook Twilio — request recibido', {
     isMock,
     url,
     hasSignature: !!signature,
+    hasResolvedAuthToken: !!waba?.auth_token,
     hasSubaccountToken: !!process.env.TWILIO_SUBACCOUNT_AUTH_TOKEN,
     hasMasterToken: !!process.env.TWILIO_AUTH_TOKEN,
     messageStatus: params['MessageStatus'] ?? null,
@@ -71,6 +97,7 @@ export async function POST(request: Request) {
 
   if (!isMock) {
     const tokensToTry = [
+      waba?.auth_token ?? '',
       process.env.TWILIO_SUBACCOUNT_AUTH_TOKEN ?? '',
       process.env.TWILIO_AUTH_TOKEN ?? '',
     ].filter(Boolean)
@@ -111,17 +138,8 @@ export async function POST(request: Request) {
 
     console.log('Webhook — inbound message:', { fromPhone, toPhone, body: incomingBody })
 
-    const serviceClient = getServiceClient()
-
-    const { data: waba, error: wabaError } = await serviceClient
-      .from('waba_connections')
-      .select('org_id, twilio_subaccount_sid, phone_number')
-      .eq('phone_number', toPhone)
-      .eq('status', 'active')
-      .single()
-
-    if (!waba) {
-      console.error('Webhook — waba no encontrada para toPhone:', toPhone, wabaError)
+    if (!waba || waba.phone_number !== toPhone) {
+      console.error('Webhook — waba no encontrada para toPhone:', toPhone)
       return NextResponse.json({ ok: true })
     }
 
@@ -357,10 +375,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  const { error } = await getServiceClient()
+  const { error } = await serviceClient
     .from('message_logs')
     .update({ status: mappedStatus, wam_id: messageSid })
     .eq('wam_id', messageSid)
+    .neq('status', 'reply_received')
 
   if (error) {
     console.error('Webhook Twilio — error actualizando message_logs:', error)
