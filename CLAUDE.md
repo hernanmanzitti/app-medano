@@ -149,6 +149,8 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [ ] Fase 16: Visibility Optimizer — mantenimiento automático de Google Business Profile + Apple Business Connect vía API
 - [x] UI: cambiar colores de los badges de status en message-logs-table (pending/sent amarillo, delivered royal, read verde, failed rojo, blocked gris, reply_received violeta) — mejora de legibilidad visual.
 - [x] Settings: editar nombre de organización desde /dashboard/settings. Bloque nuevo arriba de Sede central, validación 2-60 chars, actualiza sidebar con router.refresh().
+- [x] **Multi-tenant real (18 jul 2026)**: el sistema dejó de estar hardcodeado para un solo cliente. `send/route.ts` lee `template_sid` de la fila de `waba_connections` de la org (fallback a env var). El webhook resuelve el `auth_token` del subaccount dinámicamente por número (To en inbound, From en status callback) para validar firma sin 403. Columnas nuevas `auth_token` + `template_sid` en `waba_connections` (migración `20260717000000_multitenant_waba_auth_template.sql`). COBA backfilleado a mano en SQL Editor. Habilita onboardear clientes nuevos sin tocar código. NO es una fase del roadmap — es habilitador; Fase 13 (Billing) sigue siendo el próximo bloqueante estratégico.
+- [x] **Bug #1 (`reply_received`) RESUELTO (18 jul 2026)** — ver sección de aprendizajes. Causa raíz: CHECK constraint desactualizado en `message_logs.status`, no race condition ni formato de teléfono (ambas hipótesis previas del MD estaban equivocadas).
 - [ ] Settings: cambiar email del usuario con flujo de verificación — el usuario ingresa nuevo email → se envía código de 6 dígitos a la nueva casilla vía Resend → usuario ingresa el código en el dashboard → recién ahí se confirma el cambio. Protege contra errores de tipeo y valida que la casilla pertenezca al usuario.
 
 ---
@@ -180,7 +182,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
    - Ingresar el número comprado, verificar con código SMS
    - El código llega al número de Twilio → buscarlo en Twilio Console → Monitor → Logs → Messages
 4. **Configurar webhook inbound** en el sender: Messaging → WhatsApp Senders → el número → "Webhook URL for incoming messages" → `https://appmedano.netlify.app/api/webhooks/twilio`
-5. **Insertar registro en `waba_connections`** en Supabase con `org_id`, `twilio_subaccount_sid`, `phone_number` (formato `+1XXXXXXXXXX`), `status = 'active'`
+5. **Insertar registro en `waba_connections`** en Supabase con `org_id`, `twilio_subaccount_sid`, `phone_number` (formato `+1XXXXXXXXXX`), `auth_token` (el Auth Token del subaccount, para validación de firma del webhook), `template_sid` (el SID del template aprobado en ESTE subaccount — cada subaccount tiene el suyo), `status = 'active'`. **Multi-tenant (18 jul 2026):** `auth_token` y `template_sid` son obligatorios por cliente. Si quedan null, el sistema cae al fallback de env vars (los de COBA) → el cliente nuevo enviaría con el token/template equivocado. Verificar en la prueba de humo.
 6. **Crear usuario** en app.medano.co para el cliente (Supabase → Auth → Users → Invite)
 
 ### Próxima fase de desarrollo — tutoriales
@@ -375,6 +377,13 @@ Así podemos seguir mejorando nuestra atención.
 
 ### Ciclo de vida de un mensaje (status en message_logs)
 `pending` → `sent` → `delivered` → `read` / `failed` / `blocked` / `reply_received` / `clicked`
+
+> **CHECK constraint `message_logs_status_check`** (corregido 18 jul 2026): originalmente
+> solo permitía `pending, sent, delivered, read, failed`. Los status agregados en fases
+> posteriores (`blocked`, `reply_received`, `clicked`) NUNCA se agregaron al constraint,
+> lo que hacía que cualquier UPDATE a esos valores fuera rechazado silenciosamente por
+> Postgres (error 23514). Constraint recreado con los 8 valores. Causa raíz del Bug #1
+> (ver sección de aprendizajes 18 jul).
 
 ---
 
@@ -744,7 +753,7 @@ Permite al cliente editar su perfil de WhatsApp Business desde el dashboard de M
 ```sql
 -- Existentes
 organizations:    id, name, owner_id, review_link, forwarding_number*, wizard_step*, logo_url*, category*, created_at
-waba_connections: id, org_id, channel_id, api_key, twilio_subaccount_sid, phone_number, status, created_at
+waba_connections: id, org_id, channel_id, api_key, twilio_subaccount_sid, phone_number, auth_token*, template_sid*, status, created_at
 locations:        id, org_id, name, review_link, active*, created_at
 message_logs:     id, org_id, location_id, customer_name, phone, status, error, wam_id, short_url*, created_at
 profiles:         id (= auth.uid), email, role (client|admin|superadmin), created_at
@@ -755,7 +764,9 @@ scheduled_sends:  id, org_id, location_id, contacts JSONB, scheduled_at, status,
 bot_sessions:     id, org_id, phone, step, data JSONB, created_at, updated_at
 audit_logs:       id, admin_id, target_org_id, action, metadata JSONB, created_at
 ```
-(*) campos nuevos a agregar en migraciones pendientes
+(*) campos nuevos a agregar en migraciones pendientes — EXCEPTO `waba_connections.auth_token` 
+y `waba_connections.template_sid`, que YA están aplicados en producción (migración 
+`20260717000000`, 18 jul 2026, multi-tenant).
 
 ---
 
@@ -1206,108 +1217,97 @@ estratégicos no tienen base sobre la cual venderse. Tiempo estimado:
 
 ## Bugs abiertos
 
-### Bug #1 — Status no cambia a `reply_received` tras inbound (15 mayo 2026)
+_(ninguno abierto al 18 jul 2026 — Bug #1 resuelto, ver abajo)_
 
-**Síntoma:** después del commit bf52b4c (Fase 7 parte 4), cuando el usuario 
-final responde al mensaje, el status del row correspondiente en 
-`message_logs` queda en `read` en lugar de pasar a `reply_received`. El 
-resto del path funciona (forwarding al cliente + respuesta automática al 
-usuario llegan correctamente).
+### Bug #1 — Status no cambia a `reply_received` tras inbound — RESUELTO (18 jul 2026)
 
-**Causa probable:** mismatch de formato del campo `phone` entre cómo se 
-guarda en `message_logs` y cómo lo busca el webhook al recuperar `lastLog`.
+**Síntoma:** cuando el usuario final respondía al mensaje, el row en 
+`message_logs` quedaba en `read` en lugar de pasar a `reply_received`. El 
+resto del path (forwarding + respuesta automática) funcionaba.
 
-**Hallazgos hasta ahora:**
-- Webhook (`app/api/webhooks/twilio/route.ts:109`) extrae el número 
-  como: `const fromPhone = fromNumber.replace('whatsapp:+', '')` → 
-  resultado: `"5491173616189"` (sin `+`, sin `whatsapp:`).
-- Webhook busca lastLog con `.eq('phone', fromPhone)` 
-  (app/api/webhooks/twilio/route.ts:140-147).
-- Claude Code afirma que message_logs se guarda sin `+`, pero NO se 
-  verificó empíricamente en la DB durante esta sesión.
-- En el dashboard, el phone aparece como `+5491173616189` (con `+`) — 
-  ambigüedad: puede ser formateo visual del componente o reflejo del 
-  valor literal de la DB.
-- **Verificación empírica en Supabase Table Editor (15 mayo 2026):** 
-  el campo `phone` en `message_logs` se guarda SIN el `+` y SIN el prefijo 
-  `whatsapp:`. Formato literal del row más reciente: `5491173616189`. 
-  **Coincide exactamente con el formato que usa el webhook para la query 
-  de lastLog** (`fromPhone` después de `.replace('whatsapp:+', '')`). 
-  La hipótesis de mismatch de formato queda descartada — el bug tiene 
-  otra causa raíz.
-- **Hipótesis nueva más probable: race condition con webhook de status.** 
-  Twilio puede estar enviando un evento de status `read` DESPUÉS del 
-  webhook de inbound. Secuencia hipotética:
-  1. Usuario responde el mensaje
-  2. Twilio dispara webhook inbound → handler procesa el reply → 
-     `UPDATE status = 'reply_received'` se ejecuta correctamente
-  3. Twilio dispara webhook de status `read` (porque el usuario también 
-     leyó el mensaje original al abrirlo para responder)
-  4. El handler de status sobreescribe el status a `read`, perdiendo 
-     el `reply_received` recién seteado
+**Causa raíz REAL (confirmada por logs):** el CHECK constraint 
+`message_logs_status_check` solo permitía `pending, sent, delivered, read, 
+failed`. Los status agregados en fases posteriores (`blocked`, 
+`reply_received`, `clicked`) nunca se agregaron al constraint. Cuando el 
+webhook intentaba `UPDATE status = 'reply_received'`, Postgres lo rechazaba 
+con error `23514` (violación de check constraint), la fila quedaba en `read`, 
+y como el UPDATE original NO logueaba el error, el fallo era completamente 
+silencioso.
 
-  Esta hipótesis explica por qué el resto del path funciona (forwarding 
-  y respuesta automática llegan, porque están antes en el flujo) pero el 
-  status queda en `read`. El refactor del 14 mayo probablemente NO 
-  introdujo este bug sino que lo expuso al consolidar el orden de 
-  operaciones.
-- **Posible vector alternativo:** la condición `if (lastLog)` que envuelve 
-  el UPDATE de `reply_received` (línea ~138 del webhook) puede estar 
-  fallando si `lastLog` queda en `null` por otra razón (ej. la query 
-  .maybeSingle() con .limit(1) trayendo otro row, o un filtro extra). 
-  Necesita console.log de diagnóstico.
+**Ambas hipótesis previas del MD estaban equivocadas:**
+- ❌ Mismatch de formato de teléfono — descartada el 15 mayo (formatos coinciden).
+- ❌ Race condition con webhook de status pisando el valor — descartada el 
+  18 jul. El log mostró que `lastLog` se encontraba OK y el UPDATE SÍ corría; 
+  el problema era que la DB lo rechazaba antes de persistir.
 
-**Acciones pendientes para resolver:**
-1. Verificar el formato real del campo `phone` en `message_logs` abriendo 
-   un row reciente en Supabase Table Editor.
-2. Verificar el formato del valor que `send/route.ts` inserta en el campo 
-   `phone` cuando crea el log.
-3. Si hay mismatch: alinear los dos formatos (decidir si guardar con o 
-   sin `+` consistentemente, ajustar el lado que esté roto).
-4. Re-correr el escenario 2 de validación post-refactor: enviar mensaje 
-   → responder → verificar que el badge en el dashboard pasa a 
-   `reply_received` (violeta).
-5. Una vez resuelto, correr el escenario 3 (opt-out BAJA).
+**Cómo se cazó:** se instrumentó el webhook con un log `[bug1-debug]` después 
+de la SELECT de lastLog + captura del `{ error }` del UPDATE (que antes no se 
+desestructuraba). El log reveló: `lastLog` encontrado, phone/org correctos, 
+status `read`, y el UPDATE devolviendo error `23514`. Sin esa captura de error, 
+el bug era invisible.
 
-**Impacto:** no afecta UX del usuario final (los mensajes siguen llegando 
-correctamente). Solo afecta la trazabilidad en el dashboard de COBA — los 
-envíos respondidos quedan visibles como "Leído" en lugar de "Respondido", 
-lo que rompe la visibilidad operativa del cliente.
+**Fix aplicado:** recrear el constraint con los 8 valores del ciclo de vida:
+```sql
+ALTER TABLE message_logs DROP CONSTRAINT message_logs_status_check;
+ALTER TABLE message_logs ADD CONSTRAINT message_logs_status_check
+  CHECK (status = ANY (ARRAY['pending','sent','delivered','read','failed',
+    'blocked','reply_received','clicked']));
+```
+El `.neq('status','reply_received')` que se había agregado antes (contra la 
+race condition hipotética) se mantiene como defensa inofensiva.
+
+**Validado en producción (18 jul 2026):** envío desde COBA → respuesta del 
+usuario → badge pasa a "Respondido" (violeta) en el dashboard. Sin errores 
+en logs.
+
+**Lección transversal:** este mismo constraint también rompía silenciosamente 
+el path de `blocked` (opt-out BAJA). Cuando se agregue un status nuevo al 
+ciclo de vida, actualizar SIEMPRE el CHECK constraint en la misma migración. 
+Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error }` 
+— un UPDATE que falla en silencio es indistinguible de uno que nunca corre.
 
 ---
 
-## TODO próxima sesión (post 15 mayo 2026)
+## TODO próxima sesión (post 18 jul 2026)
 
-**Prioridad 1 — Cerrar Bug #1 (causa raíz NO es formato de teléfono):**
+**Contexto de cierre de sesión 18 jul:** multi-tenant técnico listo y 
+validado, Bug #1 resuelto. Onboarding de clientes nuevos desbloqueado. 
+Andamiaje de diagnóstico `[bug1-debug]` removido del webhook (limpieza post-fix).
 
-1. Agregar console.log de diagnóstico en el webhook después de la query 
-   de lastLog para confirmar empíricamente si lastLog viene con datos o 
-   en null cuando se procesa un inbound:
-   `console.log('[webhook-debug] lastLog:', lastLog ? lastLog.id : 'null', 'phone:', fromPhone, 'org:', waba.org_id)`
+**Prioridad 1 — Onboardear los 2 clientes nuevos** (checklist operativo de 
+la sección "Onboarding de nuevo cliente"). Recordatorios críticos del 
+multi-tenant:
+- El insert en `waba_connections` DEBE incluir `auth_token` y `template_sid` 
+  del subaccount nuevo. Si quedan null → fallback a env vars de COBA (token 
+  y template equivocados).
+- El `template_sid` es el del template aprobado en ESE subaccount (cada 
+  subaccount tiene el suyo — los templates no se comparten entre cuentas Twilio).
+- Prueba de humo por cliente antes de mandar a un usuario real: enviar al 
+  propio número + responder → verificar badge "Respondido".
 
-2. Disparar un test (envío + respuesta desde número personal) y revisar 
-   logs de Netlify (Functions → twilio webhook → últimas invocaciones) 
-   para ver:
-   - Si lastLog se encontró o vino null
-   - El orden cronológico de webhooks que llegan después de la respuesta 
-     del usuario (inbound vs status read)
+**Decisión operativa — Alejandra (DataTrackers ops) opera Medano:**
+- Los 2 clientes nuevos probablemente los opere Alejandra, no cada cliente 
+  con su login. Como hoy un usuario = una org, usar alias de email por cliente 
+  (`alejandra+cliente1@...`, `alejandra+cliente2@...`) — Gmail los trata como 
+  casillas distintas, todo llega a su inbox, cero código. Fase 12 (admin + 
+  Become mode) recién se justifica con 10+ clientes.
+- `forwarding_number` SIEMPRE el del cliente final (el negocio), nunca el de 
+  Alejandra — las respuestas de pacientes/consumidores tienen que llegar al 
+  negocio.
 
-3. Según resultado del diagnóstico:
-   - Si lastLog es null → query falla por otra razón (filtros, RLS, 
-     formato), investigar.
-   - Si lastLog tiene datos pero el UPDATE no persiste → race condition 
-     confirmada con webhook de status. Solución: hacer el UPDATE 
-     condicional (`UPDATE message_logs SET status = 'reply_received' 
-     WHERE id = X AND status NOT IN ('reply_received')`) y aplicar la 
-     misma condición invertida en el handler de status webhook (no 
-     sobreescribir `reply_received` con `read`).
+**Prioridad 2 — Facturación manual provisoria:** con 2 clientes, cobrar por 
+transferencia mensual. Definir plan + precio antes de activarlos. Fase 13 
+(Billing automático) deja de ser postergable apenas se sume el 3er/4to cliente.
 
-4. Una vez resuelto, re-validar escenario 2 (badge cambia a 
-   `reply_received` en dashboard).
+**Deuda técnica registrada (18 jul):** `app/api/onboarding/connect-waba/route.ts` 
+recibe `twilio_auth_token` en el body (lo usa para validar credenciales contra 
+Twilio) pero NUNCA lo persiste en `waba_connections`. Hoy es dead code — los 
+inserts se hacen a mano por SQL. PERO si algún día se cablea esa ruta en el 
+onboarding real (o en Fase 6 wizard), hay que agregar `auth_token` + 
+`template_sid` a su upsert, o los clientes nuevos caerán silenciosamente al 
+fallback de env vars de COBA en vez de usar su propio token/template.
 
-5. Validar escenario 3 (opt-out BAJA actualiza blacklist y log a `blocked`).
-
-**Prioridad 2 — Template de rating:**
+**Prioridad 3 — Template de rating (flujo conversacional):**
 1. Esperar aprobación de Meta del template submitido el 14 mayo
 2. Cuando Meta apruebe: cargar `TWILIO_TEMPLATE_RATING_SID` en Netlify
 3. Cambiar `FLOW_CONVERSATIONAL_ENABLED=true` en Netlify
@@ -1315,7 +1315,7 @@ lo que rompe la visibilidad operativa del cliente.
    responder con "5" → recibir link en free-form / responder con "1" → 
    recibir pedido de feedback + reenvío al forwarding_number
 
-**Prioridad 3 — Frontend del flujo nuevo:**
+**Prioridad 4 — Frontend del flujo nuevo:**
 1. Agregar selector en `/dashboard` para elegir "envío directo" vs 
    "flujo conversacional" antes de enviar
 2. El frontend manda `useRatingFlow: true` en el body del POST cuando 
