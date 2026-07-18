@@ -157,12 +157,14 @@ export async function POST(request: Request) {
     // Buscar el último message_log del teléfono para este org (una sola query)
     const { data: lastLog } = await serviceClient
       .from('message_logs')
-      .select('id, flow_step, satisfaction_score, customer_name, location_id, created_at')
+      .select('id, flow_step, satisfaction_score, customer_name, location_id, created_at, status')
       .eq('org_id', waba.org_id)
       .eq('phone', fromPhone)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+
+    console.log('[bug1-debug] lastLog:', lastLog ? lastLog.id : 'null', '| phone buscado:', fromPhone, '| org_id:', waba?.org_id, '| status actual:', lastLog?.status)
 
     const ageMs = lastLog ? Date.now() - new Date(lastLog.created_at).getTime() : Infinity
     const within24h = ageMs < 24 * 60 * 60 * 1000
@@ -320,10 +322,12 @@ export async function POST(request: Request) {
 
     // ── Forwarding genérico (Fase 9) — se ejecuta si no hubo return temprano ──
     if (lastLog) {
-      await serviceClient
+      const { error: replyUpdateError } = await serviceClient
         .from('message_logs')
         .update({ status: 'reply_received' })
         .eq('id', lastLog.id)
+        .neq('status', 'reply_received')
+      if (replyUpdateError) console.error('[bug1-debug] UPDATE reply_received falló:', replyUpdateError)
     }
 
     if (org.forwarding_number) {
