@@ -123,6 +123,8 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
   + índice condicional sobre message_logs). Feature flag 
   FLOW_CONVERSATIONAL_ENABLED en `false` por default en Netlify. El código 
   está en producción pero el flujo nuevo NO está activo todavía.
+- [ ] Fase 7 (parte 5): Carga masiva de contactos por pegado — implementado y
+  validado parcialmente en local. Sin commit, sin deploy. Ver módulo abajo.
 - [ ] Validación post-refactor del webhook (legacy intacto) — parcial:
   - ✅ Envío básico funciona (template medano_review_request_4, status 
     sent → delivered → read)
@@ -611,6 +613,97 @@ created_at, suficiente para reconstruir el estado del flujo.
   NO debe ejecutarse si hay un flow_step activo. Sin esta protección, 
   un usuario que respondió "1" y después escribe "no fue buena la 
   atención" quedaría bloqueado por error.
+
+---
+
+## Módulo: Carga masiva por pegado (Fase 7 parte 5 — en validación)
+
+Problema: los clientes mandan los contactos en planillas de Google Sheets y el
+operador los cargaba de a uno. Solución: pegar múltiples filas, revisarlas en un
+preview bloqueante y enviarlas en lote.
+
+### Archivos
+
+- `lib/parse-contacts.ts` + `lib/parse-contacts.test.ts` — funciones puras:
+  `parseContacts`, `normalizeFirstName`, `normalizeArPhone`,
+  `reapplyApellidoPrimero`, `chunkArray`, `MAX_PASTE_ROWS = 50`
+- `app/api/messages/check-history/route.ts` — dedupe contra historial
+- `components/bulk-paste-panel.tsx` — botón + textarea de pegado
+- `components/bulk-contact-preview.tsx` — tabla bloqueante, envío en chunks
+- Modificados: `components/send-review-form.tsx`, `app/api/messages/send/route.ts`
+
+### Decisiones tomadas
+
+- **Tope de 50 filas por pegado.** Decisión de producto para la v1: se le indica
+  al cliente cargar de a tandas de 50. Si pega más, se cargan las primeras 50 y
+  un banner persistente (no un toast) avisa cuántas quedaron afuera. El riesgo
+  que evita: el operador pega 80, envía y se va creyendo que mandó todo.
+- **Chunks de 10 en el envío.** NO confundir con el tope de 50: son cosas
+  distintas. El chunk resuelve el timeout de 10s de las funciones de Netlify —
+  50 llamadas secuenciales a Twilio son ~25s → 502 sin saber qué se envió. El
+  frontend manda un POST por chunk, en secuencia, con barra de progreso.
+- **`Promise.allSettled` dentro del chunk** en `send/route.ts`. Cambió el path
+  de envío múltiple que ya existía: de 10 llamadas en fila a 10 simultáneas.
+  Devuelve un resultado por contacto para poder reintentar solo los fallidos.
+- **Dedupe en tres niveles**: dentro del pegado (gana la PRIMERA aparición, el
+  resto queda no seleccionable), contra blacklist (bloqueante, no destildable),
+  y contra historial de 90 días (avisa con la fecha, deseleccionado por default
+  pero el operador puede tildarlo).
+- **Límite de Meta (250 conversaciones/24hs)**: aviso informativo, no bloquea.
+  Se cuenta por org, no por WABA — hoy equivalentes porque cada org tiene un
+  número; solo divergiría si una org llegara a tener dos.
+- **Nombre**: se toma solo el primer nombre, capitalizado con locale es-AR
+  ("JUAN PEDRO" → "Juan"). Si hay coma se asume "Apellido, Nombre" y se toma lo
+  de después. Toggle "El apellido viene primero" re-normaliza el lote entero de
+  un click, sin pisar ediciones manuales. Motivo: las planillas de clínicas
+  salen del sistema de gestión en orden apellido primero, y "Hola Perez" lee
+  frío.
+- **Teléfono**: nunca adivina código de área. 10 dígitos exactos o inválido. Si
+  el resultado de 10 dígitos empieza con "15" → inválido ("Falta el código de
+  área"): no existe código de área argentino que empiece con 15.
+- **Sucursal**: una por lote. Si la org tiene locations, la elección es
+  obligatoria — el selector arranca vacío y el botón de enviar queda
+  deshabilitado hasta elegir, con "Sede central" como opción explícita. Si no
+  tiene locations, texto plano "Sede central" sin fricción. Motivo: un default
+  se ve como respuesta válida, y el operador que no lo toca manda 50 mensajes al
+  link de Google equivocado sin haber decidido nada.
+- **El paste en el campo Nombre secuestra el flujo** si el texto tiene \n o \t.
+  Pegar un nombre de una línea sigue funcionando normal. Es un comportamiento no
+  obvio: por eso existe además el botón "Pegar lista desde Excel/Sheets" como
+  camino descubrible.
+
+### Descartado (con motivo)
+
+- **Import de CSV con file picker**: la fricción real es copiar y pegar desde
+  Sheets, no subir un archivo.
+- **Playwright para validación visual**: no justifica 300MB de binario para una
+  feature que se valida a ojo una vez. El juicio sobre si un badge se entiende
+  no lo da un screenshot.
+- **CHECK constraint sobre `message_logs.phone`**: un constraint hace que un
+  insert en formato raro falle y se pierda la fila del log — peor que tenerla
+  mal formateada. Lección directa del Bug #1. Si algún día se cierra el tema, va
+  por un helper único de normalización que usen `send/route.ts` y el webhook,
+  para que el formato se cumpla por construcción y no por rechazo.
+
+### API `POST /api/messages/check-history`
+
+Request: `{ phones: string[] }` (el server normaliza a dígitos y dedupe).
+Response 200:
+
+```json
+{
+  "history": { "5491155441234": { "lastContactAt": "...", "status": "delivered" } },
+  "sentLast24h": 17
+}
+```
+
+Solo aparecen en `history` los teléfonos con match. Filtra por `org_id`
+explícito. Historial excluye `failed`; el volumen de 24hs excluye `failed` y
+`blocked`. Errores: 401, 400 (array vacío / >200 / sin números válidos), 404, 500.
+
+Nota: el tope del cliente es 50 y el de la API 200. La API es deliberadamente más
+permisiva. Si algún día se sube el tope del pegado por encima de 200, el
+resultado es un 400 silencioso.
 
 ---
 
@@ -1215,6 +1308,42 @@ estratégicos no tienen base sobre la cual venderse. Tiempo estimado:
 
 ---
 
+## Aprendizajes — sesión 5 septiembre 2026
+
+- **Formato de `message_logs.phone` confirmado empíricamente**: 301 filas, 2
+  fuera del formato `^549[0-9]{10}$`, ambas de abril y julio (pruebas manuales y
+  la sesión de debugging del Bug #1). En siete semanas de operación normal no se
+  escribió ninguna mal formada. Queda cerrado el pendiente que el MD arrastraba
+  desde mayo: el formato es "549" + 10 dígitos locales, y un `.in()` con match
+  exacto es seguro. Lección de método: verificar contra los datos, no leyendo el
+  write path — que el código escriba bien hoy no dice nada de las filas viejas.
+- **Supabase renombró la service key.** `.env.local` tenía
+  `SUPABASE_SECRET_KEY` y el código lee `SUPABASE_SERVICE_ROLE_KEY`: sin alias,
+  `getServiceClient()` recibía undefined y `check-history` tiraba 500. Producción
+  no está afectada (si lo estuviera no andaría nada). Deuda: que el código lea el
+  nombre nuevo con fallback al viejo, antes de que Supabase deprecate el anterior.
+- **`.env.local` viene derivando de Netlify.** Faltan `NEXT_PUBLIC_APP_URL`,
+  `TWILIO_SUBACCOUNT_AUTH_TOKEN`, `TWILIO_TEMPLATE_RATING_SID`,
+  `FLOW_CONVERSATIONAL_ENABLED`. Con el mock activo ninguna hace falta, pero
+  conviene sincronizarlo. El CLI de Netlify no está instalado localmente.
+- **`NEXT_PUBLIC_WABA_MOCK=true` ya estaba en `.env.local`** y es parte de la
+  config local de siempre. Sirve para probar el flujo completo de envío sin
+  gastar mensajes, pero igual escribe filas en `message_logs` de producción:
+  usar números falsos y limpiar después con `scripts/cleanup-test-rows.mjs`
+  (dry-run por default, `--confirm` para borrar).
+- **Primer framework de testing del proyecto**: vitest como devDependency,
+  script `npm test`. 34 tests sobre `lib/parse-contacts.ts`. No afecta el build
+  de Netlify.
+- **Warning de Next 16**: middleware deprecado a favor de proxy. Preexistente, no
+  rompe nada hoy, pero `middleware.ts` es lo que protege las rutas — es un
+  breaking change futuro en un archivo sensible.
+- **Tooltips nativos (`title`) no sirven para información decisoria.** La fecha
+  de "ya contactado" es el dato con el que el operador decide si tilda la fila:
+  con delay, sin señal visual y sin existir en mobile, no alcanza. Va inline. El
+  warning de "corregido" sí puede quedarse en tooltip porque es informativo.
+
+---
+
 ## Bugs abiertos
 
 _(ninguno abierto al 18 jul 2026 — Bug #1 resuelto, ver abajo)_
@@ -1268,60 +1397,35 @@ Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error 
 
 ---
 
-## TODO próxima sesión (post 18 jul 2026)
+## TODO próxima sesión (post 5 sep 2026)
 
-**Contexto de cierre de sesión 18 jul:** multi-tenant técnico listo y 
-validado, Bug #1 resuelto. Onboarding de clientes nuevos desbloqueado. 
-Andamiaje de diagnóstico `[bug1-debug]` removido del webhook (limpieza post-fix).
+**Estado:** Fase 7 parte 5 implementada, validada parcialmente en localhost con
+mock. Sin commit, sin push, sin deploy.
 
-**Prioridad 1 — Onboardear los 2 clientes nuevos** (checklist operativo de 
-la sección "Onboarding de nuevo cliente"). Recordatorios críticos del 
-multi-tenant:
-- El insert en `waba_connections` DEBE incluir `auth_token` y `template_sid` 
-  del subaccount nuevo. Si quedan null → fallback a env vars de COBA (token 
-  y template equivocados).
-- El `template_sid` es el del template aprobado en ESE subaccount (cada 
-  subaccount tiene el suyo — los templates no se comparten entre cuentas Twilio).
-- Prueba de humo por cliente antes de mandar a un usuario real: enviar al 
-  propio número + responder → verificar badge "Respondido".
+**Pendientes de código:**
+1. Selector de sucursal obligatorio en el preview (última instrucción dada,
+   verificar si quedó aplicada).
+2. `console.log` de debug en `send/route.ts:295` — sacarlo si es traza; si es el
+   que loguea el `{ error }` de una escritura, se queda (regla del Bug #1).
+3. Confirmar que el path del batch con `Promise.allSettled` desestructura y
+   loguea el `{ error }` de los inserts en `message_logs`. Si quedó un catch que
+   se traga el error, es el agujero del Bug #1 en un lugar nuevo.
 
-**Decisión operativa — Alejandra (DataTrackers ops) opera Medano:**
-- Los 2 clientes nuevos probablemente los opere Alejandra, no cada cliente 
-  con su login. Como hoy un usuario = una org, usar alias de email por cliente 
-  (`alejandra+cliente1@...`, `alejandra+cliente2@...`) — Gmail los trata como 
-  casillas distintas, todo llega a su inbox, cero código. Fase 12 (admin + 
-  Become mode) recién se justifica con 10+ clientes.
-- `forwarding_number` SIEMPRE el del cliente final (el negocio), nunca el de 
-  Alejandra — las respuestas de pacientes/consumidores tienen que llegar al 
-  negocio.
+**Pendientes de validación (localhost, con mock):**
+- Regresión del flujo individual "+ Agregar" — el `Promise.allSettled` tocó el
+  path de envío múltiple que ya andaba en producción.
+- Pegar un nombre de una sola línea en el campo Nombre sigue funcionando normal.
+- Reintento de fallidos: el match es por dígitos contra `phoneLocal` o
+  `phoneE164`; forzar un fallo y verificar que reintenta la fila correcta.
+- Preview en vista mobile.
+- Envío de 25 filas falsas para ver los tres chunks, la barra de progreso, el
+  `beforeunload` y el guard de doble submit.
 
-**Prioridad 2 — Facturación manual provisoria:** con 2 clientes, cobrar por 
-transferencia mensual. Definir plan + precio antes de activarlos. Fase 13 
-(Billing automático) deja de ser postergable apenas se sume el 3er/4to cliente.
+**Después:** commit, deploy, y UNA prueba real en producción al número propio.
+Limpiar las filas de prueba con el script.
 
-**Deuda técnica registrada (18 jul):** `app/api/onboarding/connect-waba/route.ts` 
-recibe `twilio_auth_token` en el body (lo usa para validar credenciales contra 
-Twilio) pero NUNCA lo persiste en `waba_connections`. Hoy es dead code — los 
-inserts se hacen a mano por SQL. PERO si algún día se cablea esa ruta en el 
-onboarding real (o en Fase 6 wizard), hay que agregar `auth_token` + 
-`template_sid` a su upsert, o los clientes nuevos caerán silenciosamente al 
-fallback de env vars de COBA en vez de usar su propio token/template.
-
-**Prioridad 3 — Template de rating (flujo conversacional):**
-1. Esperar aprobación de Meta del template submitido el 14 mayo
-2. Cuando Meta apruebe: cargar `TWILIO_TEMPLATE_RATING_SID` en Netlify
-3. Cambiar `FLOW_CONVERSATIONAL_ENABLED=true` en Netlify
-4. Validar end-to-end del flujo nuevo: envío de pregunta de rating → 
-   responder con "5" → recibir link en free-form / responder con "1" → 
-   recibir pedido de feedback + reenvío al forwarding_number
-
-**Prioridad 4 — Frontend del flujo nuevo:**
-1. Agregar selector en `/dashboard` para elegir "envío directo" vs 
-   "flujo conversacional" antes de enviar
-2. El frontend manda `useRatingFlow: true` en el body del POST cuando 
-   se elige el flujo conversacional
-3. Por ahora puede ser un toggle simple — UI más refinada queda para 
-   después si el flujo demuestra valor
+**Futuro, no ahora:** planilla con columna de sucursal para clientes con varios
+locales (hoy es una sucursal por lote).
 
 ---
 
