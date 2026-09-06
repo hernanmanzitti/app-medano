@@ -1346,7 +1346,30 @@ estratégicos no tienen base sobre la cual venderse. Tiempo estimado:
 
 ## Bugs abiertos
 
-_(ninguno abierto al 18 jul 2026 — Bug #1 resuelto, ver abajo)_
+_(1 abierto: Bug #2)_
+
+### Bug #2 — Inserts a `message_logs` sin captura de error (path individual) — ABIERTO
+
+**Dónde:** `app/api/messages/send/route.ts`, los dos inserts a `message_logs`
+del path de envío individual (código legacy). Al 6 sep 2026 estaban en las
+líneas 171 y 206; el archivo está por cambiar con Fase 7 parte 5, así que
+buscarlos por el `.insert(` sin `{ error }` desestructurado, no por número
+de línea.
+
+**Síntoma:** ninguno reportado. Es un agujero de observabilidad, no una falla
+observada.
+
+**Riesgo:** si el insert falla (constraint, RLS, columna faltante — exactamente
+el escenario del Bug #1), el mensaje YA salió a WhatsApp pero no queda fila de
+log. El cliente no lo ve en el historial, y el webhook después no encuentra
+`lastLog` para actualizar status ni para bifurcar el flujo conversacional.
+Falla silenciosa, indistinguible de un envío que nunca ocurrió.
+
+**Fix:** desestructurar y loguear `{ error }` en ambos inserts. Misma regla
+transversal que salió del Bug #1.
+
+**Cuándo:** NO en commit aislado. Aislar el fix arrastraría los cambios de batch
+sin validar que ya están en el working tree. Va en el commit de Fase 7 parte 5.
 
 ### Bug #1 — Status no cambia a `reply_received` tras inbound — RESUELTO (18 jul 2026)
 
@@ -1410,6 +1433,9 @@ mock. Sin commit, sin push, sin deploy.
 3. Confirmar que el path del batch con `Promise.allSettled` desestructura y
    loguea el `{ error }` de los inserts en `message_logs`. Si quedó un catch que
    se traga el error, es el agujero del Bug #1 en un lugar nuevo.
+4. Fix del Bug #2: desestructurar y loguear `{ error }` en los dos inserts a
+   `message_logs` del path individual de `send/route.ts`. Va en este mismo
+   commit junto con el punto 3 — son el mismo agujero en dos paths distintos.
 
 **Pendientes de validación (localhost, con mock):**
 - Regresión del flujo individual "+ Agregar" — el `Promise.allSettled` tocó el
