@@ -217,6 +217,13 @@ Dos consecuencias de ese esquema:
   `hola+coba@medano.co` antes de que haya varios clientes con criterios
   mezclados.
 
+**`forwarding_number` es SIEMPRE el número del cliente final, nunca el de quien
+opera la cuenta.** Es a donde llegan las respuestas de los usuarios finales: si
+queda mal cargado, las consultas de pacientes le llegan a Medano en vez de al
+negocio, y nadie las contesta. Con el modelo operado el error es más fácil de
+cometer, porque quien da de alta al cliente no es quien va a recibir esos
+mensajes. Verificar en la prueba de humo de cada alta.
+
 Dos consecuencias sobre el roadmap:
 - **Fase 12 (Become mode) no urge**: el switch entre cuentas se resuelve con los
   alias más una ventana de incógnito.
