@@ -17,10 +17,13 @@ export default async function BlacklistPage() {
 
   if (!org) redirect('/onboarding')
 
-  const serviceClient = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const serviceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    throw new Error(
+      'Falta la service key de Supabase: definí SUPABASE_SECRET_KEY (o el nombre viejo SUPABASE_SERVICE_ROLE_KEY)'
+    )
+  }
+  const serviceClient = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
 
   const { data: items } = await serviceClient
     .from('blacklist')

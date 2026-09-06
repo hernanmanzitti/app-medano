@@ -3,10 +3,13 @@ import { createClient } from '@/lib/supabase-server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 function getServiceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const serviceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    throw new Error(
+      'Falta la service key de Supabase: definí SUPABASE_SECRET_KEY (o el nombre viejo SUPABASE_SERVICE_ROLE_KEY)'
+    )
+  }
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey)
 }
 
 // Formatea número local argentino → E.164 sin el +
