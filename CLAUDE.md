@@ -147,7 +147,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
 - [ ] Fase 12: Panel Admin Medano (consumo + Become mode)
-- [ ] Fase 13: Billing — prepago de créditos, corte automático por saldo
+- [ ] Fase 13: Billing — facturación mensual manual con cupo bloqueante por org
 - [ ] Fase 14: AI visibility tracking — monitoreo de citations en ChatGPT/Perplexity/Gemini para queries locales del cliente
 - [ ] Fase 15: Agente AI para WhatsApp inbound — clasifica mensajes entrantes, responde automáticamente los simples, escala los complejos al cliente (evolución de Fase 9)
 - [ ] Fase 16: Visibility Optimizer — mantenimiento automático de Google Business Profile + Apple Business Connect vía API
@@ -212,7 +212,7 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - Starter: $13/mes — 100 mensajes
 - Growth: $22/mes — 200 mensajes
 - Pro: $48/mes — 500 mensajes + $0.12/msg extra a partir del msg 501
-- Overflow: Starter se pasa → facturar Growth. Growth se pasa → facturar Pro.
+- Overflow: no hay. Al llegar al cupo del plan el envío se bloquea (ver Fase 13) — el cliente no puede generar costo que Medano no autorizó. Para más volumen se cambia de plan a mano.
 - Pay-as-you-go: $1.50/mes fijo + $0.1168/msg ($0.0618 Meta + $0.005 Twilio + $0.05 Medano)
 
 ### Unit economics por plan
@@ -826,6 +826,50 @@ metadata JSONB DEFAULT '{}'
 created_at TIMESTAMPTZ DEFAULT NOW()
 ```
 
+**Por qué se difiere hasta 10+ clientes:** el switch entre cuentas no necesita
+código todavía. Con alias de email (`hernan+coba@medano.co`,
+`hernan+cliente2@medano.co`) y una ventana de incógnito, Hernán opera dos o tres
+cuentas sin escribir una línea. El Become mode se justifica cuando el switch pasa
+varias veces por día, no dos veces por semana.
+
+---
+
+## Módulo: Billing (Fase 13 — pendiente)
+
+Facturación mensual manual contra el consumo real, con cupo bloqueante por
+organización. No hay pasarela de pago ni saldo: Hernán factura a mano contra lo
+que se consumió en el mes.
+
+**Alcance:**
+- Campo `monthly_quota INT` en `organizations` — el cupo del plan contratado. Lo
+  carga Hernán a mano en Supabase; no requiere panel admin.
+- Contador de consumo del mes en curso, calculado sobre `message_logs` del
+  período — no una columna denormalizada, que se desincroniza.
+- Check bloqueante en `send/route.ts` ANTES de llamar a Twilio: si el consumo del
+  mes llegó al cupo, no se envía. Aplica también al path de batch.
+- Indicador de consumo en el dashboard del cliente ("87 de 100 mensajes usados
+  este mes").
+
+**Decisiones tomadas:**
+- **Al llegar al tope se bloquea, no se deja pasar.** Reemplaza la regla de
+  overflow que tenía la sección de Pricing ("Starter se pasa → facturar Growth").
+  Motivo: el cliente no puede generar costo que Hernán no autorizó.
+- **Lote que excede el cupo restante: se envían los que entran y se avisa cuáles
+  quedaron afuera.** Si quedan 3 de cupo y el lote trae 10, salen 3. Los 7
+  restantes quedan no seleccionables en el preview con el motivo, reusando el
+  patrón que ya existe para duplicados y opt-out. Motivo: bloquear el lote entero
+  frustra sin proteger más — el costo lo controla el cupo, no el tamaño del lote.
+- **El contador se resetea el día 1 de cada mes**, no a los 30 días del alta.
+  Motivo: simplicidad, y coincide con el ciclo de facturación.
+- **Cuenta todo lo que no terminó en `failed` ni `blocked`.** Regla: si Meta
+  cobró, Medano cobra. Meta cobra por mensaje entregado, así que un `sent` que
+  después falla no debe consumir cupo — si no, el cliente pierde envíos por
+  mensajes que nadie recibió.
+
+**Descartado: prepago de créditos con recargas.** Era el alcance original de la
+fase. Al facturar a mano contra el consumo del mes no hace falta manejar saldo,
+recargas ni corte por saldo negativo.
+
 ---
 
 ## Módulo: Perfil de WhatsApp Business (post-piloto — pendiente)
@@ -1162,7 +1206,7 @@ sentido invertir tiempo de dev en features estratégicos de Tier 1.
 
 **Orden de ejecución obligatorio:**
 
-1. **Fase 13 — Billing** (prepago de créditos, corte automático por saldo). 
+1. **Fase 13 — Billing** (facturación mensual manual con cupo bloqueante). 
    Bloqueante. Sin esto, todo el resto es futuro sin fundamento económico.
 2. **Fase 14 — AI visibility tracking.** Primer feature estratégico post-
    billing. Más corto de construir (3–4 semanas MVP con Claude Code), 
@@ -1467,6 +1511,15 @@ Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error 
 ---
 
 ## TODO próxima sesión (post 6 sep 2026)
+
+**Antes que nada:**
+- Chequear en Twilio Console el estado del template de rating submetido el 14 mayo
+  2026. Cuatro meses sin novedades: puede estar aprobado, rechazado o colgado. Si
+  está aprobado, activar Fase 7 parte 4 es cargar `TWILIO_TEMPLATE_RATING_SID` en
+  Netlify y flipear `FLOW_CONVERSATIONAL_ENABLED` — la infraestructura ya está
+  deployada desde el commit `bf52b4c`.
+- Onboardear el segundo cliente con el checklist operativo (~25-30 min). No
+  requiere código: el refactor multi-tenant del 18 jul ya lo desbloqueó.
 
 **Prueba real en producción (pendiente, esta semana):**
 - Envío individual al número propio: verificar que llega, que el status pasa a
