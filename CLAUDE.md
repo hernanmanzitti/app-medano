@@ -123,8 +123,10 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
   + índice condicional sobre message_logs). Feature flag 
   FLOW_CONVERSATIONAL_ENABLED en `false` por default en Netlify. El código 
   está en producción pero el flujo nuevo NO está activo todavía.
-- [ ] Fase 7 (parte 5): Carga masiva de contactos por pegado — implementado y
-  validado parcialmente en local. Sin commit, sin deploy. Ver módulo abajo.
+- [x] Fase 7 (parte 5): Carga masiva de contactos por pegado — implementada,
+  validada en local con mock y deployada en producción (6 sep 2026). Commits:
+  `539fe60` (fallback de la service key), `8cf860d` (la feature) y `3914d2f`
+  (`@types/node` a ^22, que destrabó el build de Netlify). Ver módulo abajo.
 - [ ] Validación post-refactor del webhook (legacy intacto) — parcial:
   - ✅ Envío básico funciona (template medano_review_request_4, status 
     sent → delivered → read)
@@ -671,6 +673,21 @@ preview bloqueante y enviarlas en lote.
   Pegar un nombre de una línea sigue funcionando normal. Es un comportamiento no
   obvio: por eso existe además el botón "Pegar lista desde Excel/Sheets" como
   camino descubrible.
+- **El selector de sucursal del preview necesita un centinela.** `select` con
+  placeholder deshabilitado "Elegí una sucursal…", "Sede central" como opción
+  explícita y botón de envío bloqueado hasta elegir. El valor de "Sede central"
+  no puede ser el string vacío porque ese ya significa "todavía no elegí": se usa
+  `__sede_central__`, que se traduce a `location_id: null` al enviar. Validado en
+  Supabase: las filas del batch quedan con `location_id` NULL, no con el string
+  del centinela.
+- **El preview recibe `locations`, no `locationId`/`locationName`.** El estado de
+  la sucursal vive en `SendReviewForm`; el preview solo lo consulta. Por eso al
+  cerrarlo el selector individual reaparece con el valor que tenía, sin persistir
+  nada.
+- **El bloque de sucursal del formulario individual se oculta detrás de
+  `!bulkData`** mientras el preview está montado. Sin eso quedaban dos selectores
+  en pantalla diciendo cosas distintas y ninguna señal de cuál aplicaba al lote —
+  exactamente el problema que el selector obligatorio venía a resolver.
 
 ### Descartado (con motivo)
 
@@ -1344,32 +1361,61 @@ estratégicos no tienen base sobre la cual venderse. Tiempo estimado:
 
 ---
 
+## Aprendizajes — sesión 6 septiembre 2026
+
+- **`tsc` limpio y tests verdes no garantizan que Netlify buildee.** El deploy
+  falló con ERESOLVE: vitest 5 pide `@types/node` `^22 || >=24` y el proyecto
+  tenía `^20`. En local no se veía porque `node_modules` ya estaba resuelto de la
+  instalación anterior; Netlify parte de cero y ahí aparece. Fix: subir a `^22`,
+  que además corrige un drift de tipos contra el runtime (Netlify buildea con
+  Node 22). Se descartó `--legacy-peer-deps` porque enmascara incompatibilidades
+  reales. Regla: cualquier cambio en `package.json` exige `npm ci` en directorio
+  limpio + `npm run build` antes de pushear — el `npm ci` aislado es lo único que
+  reproduce la etapa que falla.
+- **Fallback de la service key**: Supabase renombró `SUPABASE_SERVICE_ROLE_KEY` a
+  `SUPABASE_SECRET_KEY`. Los 8 call sites ahora leen `SECRET ?? SERVICE_ROLE`,
+  con error explícito si ninguna resuelve. Producción sigue andando por el
+  fallback. PENDIENTE: cargar `SUPABASE_SECRET_KEY` en Netlify y sacar la vieja
+  antes de que Supabase deprecate el nombre anterior.
+- **Producción no tiene mock.** `NEXT_PUBLIC_WABA_MOCK` no está en Netlify: el
+  pegado masivo manda WhatsApps reales con costo desde el primer uso. Las pruebas
+  de producción van con números propios.
+- **Separar commits por concern con `git add -p`** cuando un archivo carga
+  cambios de dos cosas distintas. `send/route.ts` tenía el fix de env var
+  (transversal, toca webhook y dashboard) mezclado con la feature. Separarlos
+  deja el fix de infra revertible sin arrastrar Fase 7. El hunk del env var
+  estaba aislado 160 líneas arriba del resto, así que salió limpio sin partir
+  nada.
+
+---
+
 ## Bugs abiertos
 
-_(1 abierto: Bug #2)_
+_(0 abiertos al 6 sep 2026)_
 
-### Bug #2 — Inserts a `message_logs` sin captura de error (path individual) — ABIERTO
+### Bug #2 — Inserts a `message_logs` sin captura de error (path individual) — RESUELTO (6 sep 2026)
 
 **Dónde:** `app/api/messages/send/route.ts`, los dos inserts a `message_logs`
-del path de envío individual (código legacy). Al 6 sep 2026 estaban en las
-líneas 171 y 206; el archivo está por cambiar con Fase 7 parte 5, así que
-buscarlos por el `.insert(` sin `{ error }` desestructurado, no por número
-de línea.
+del path de envío individual (código legacy).
 
-**Síntoma:** ninguno reportado. Es un agujero de observabilidad, no una falla
+**Síntoma:** ninguno reportado. Era un agujero de observabilidad, no una falla
 observada.
 
-**Riesgo:** si el insert falla (constraint, RLS, columna faltante — exactamente
-el escenario del Bug #1), el mensaje YA salió a WhatsApp pero no queda fila de
-log. El cliente no lo ve en el historial, y el webhook después no encuentra
-`lastLog` para actualizar status ni para bifurcar el flujo conversacional.
-Falla silenciosa, indistinguible de un envío que nunca ocurrió.
+**Riesgo que evitaba:** si el insert falla (constraint, RLS, columna faltante —
+exactamente el escenario del Bug #1), el mensaje YA salió a WhatsApp pero no
+queda fila de log. El cliente no lo ve en el historial, y el webhook después no
+encuentra `lastLog` para actualizar status ni para bifurcar el flujo
+conversacional. Falla silenciosa, indistinguible de un envío que nunca ocurrió.
 
-**Fix:** desestructurar y loguear `{ error }` en ambos inserts. Misma regla
-transversal que salió del Bug #1.
+**Fix aplicado (commit `8cf860d`):** los dos inserts desestructuran y loguean
+`{ error }`. El path del batch ya lo hacía, así que el agujero era solo del
+individual; no hay un solo `try`/`catch` en el archivo, con lo cual no quedaba
+nada más tragándose errores.
 
-**Cuándo:** NO en commit aislado. Aislar el fix arrastraría los cambios de batch
-sin validar que ya están en el working tree. Va en el commit de Fase 7 parte 5.
+**Corrección de atribución:** los dos `console.log` de traza que se sacaron de
+`send/route.ts` en ese mismo commit (el del payload y el del "OK para") eran
+deuda vieja ya commiteada en HEAD. No los introdujo Fase 7 parte 5, como este
+MD daba a entender.
 
 ### Bug #1 — Status no cambia a `reply_received` tras inbound — RESUELTO (18 jul 2026)
 
@@ -1420,38 +1466,28 @@ Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error 
 
 ---
 
-## TODO próxima sesión (post 5 sep 2026)
+## TODO próxima sesión (post 6 sep 2026)
 
-**Estado:** Fase 7 parte 5 implementada, validada parcialmente en localhost con
-mock. Sin commit, sin push, sin deploy.
+**Prueba real en producción (pendiente, esta semana):**
+- Envío individual al número propio: verificar que llega, que el status pasa a
+  `delivered`, y que si se responde el badge pasa a "Respondido" (violeta).
+  Valida Twilio + firma del webhook + inbound, que no se pueden probar en local.
+- Lote de 2 con números reales propios: verificar que sale en un solo chunk sin
+  timeout.
+- Limpiar las filas de prueba con `scripts/cleanup-test-rows.mjs` (dry-run
+  primero).
 
-**Pendientes de código:**
-1. Selector de sucursal obligatorio en el preview (última instrucción dada,
-   verificar si quedó aplicada).
-2. `console.log` de debug en `send/route.ts:295` — sacarlo si es traza; si es el
-   que loguea el `{ error }` de una escritura, se queda (regla del Bug #1).
-3. Confirmar que el path del batch con `Promise.allSettled` desestructura y
-   loguea el `{ error }` de los inserts en `message_logs`. Si quedó un catch que
-   se traga el error, es el agujero del Bug #1 en un lugar nuevo.
-4. Fix del Bug #2: desestructurar y loguear `{ error }` en los dos inserts a
-   `message_logs` del path individual de `send/route.ts`. Va en este mismo
-   commit junto con el punto 3 — son el mismo agujero en dos paths distintos.
-
-**Pendientes de validación (localhost, con mock):**
-- Regresión del flujo individual "+ Agregar" — el `Promise.allSettled` tocó el
-  path de envío múltiple que ya andaba en producción.
-- Pegar un nombre de una sola línea en el campo Nombre sigue funcionando normal.
-- Reintento de fallidos: el match es por dígitos contra `phoneLocal` o
-  `phoneE164`; forzar un fallo y verificar que reintenta la fila correcta.
+**Sin validar (deployado igual, riesgo asumido):**
+- Dedupe contra historial de 90 días.
+- `beforeunload` al cerrar con un lote a medias.
+- Reintento de fallidos: con el mock todo devuelve éxito, así que no hay forma
+  natural de generar un `failed`. Requiere un hook en el mock.
 - Preview en vista mobile.
-- Envío de 25 filas falsas para ver los tres chunks, la barra de progreso, el
-  `beforeunload` y el guard de doble submit.
 
-**Después:** commit, deploy, y UNA prueba real en producción al número propio.
-Limpiar las filas de prueba con el script.
-
-**Futuro, no ahora:** planilla con columna de sucursal para clientes con varios
-locales (hoy es una sucursal por lote).
+**Higiene pendiente:**
+- `supabase/.temp/` al `.gitignore` (commit propio de una línea).
+- Averiguar qué es `logo-medano-final.png`, suelto en la raíz — puede ser el iso
+  para el sidebar colapsado que este MD tiene pendiente.
 
 ---
 
