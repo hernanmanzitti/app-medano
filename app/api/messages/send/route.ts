@@ -171,7 +171,7 @@ export async function POST(request: Request) {
     const fullPhone = formatArgentinePhone((phone as string).trim())
 
     if (await isBlacklisted(org.id, fullPhone)) {
-      await getServiceClient().from('message_logs').insert({
+      const { error: insertError } = await getServiceClient().from('message_logs').insert({
         org_id: org.id,
         customer_name: (customer_name as string).trim(),
         phone: fullPhone,
@@ -180,6 +180,9 @@ export async function POST(request: Request) {
         wam_id: null,
         location_id: location_id ?? null,
       })
+      if (insertError) {
+        console.error('Individual insert (blocked) — error en message_logs:', insertError)
+      }
       return NextResponse.json({ ok: true, blocked: true })
     }
 
@@ -206,7 +209,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await getServiceClient().from('message_logs').insert({
+    const { error: insertError } = await getServiceClient().from('message_logs').insert({
       org_id: org.id,
       customer_name: (customer_name as string).trim(),
       phone: fullPhone,
@@ -216,6 +219,9 @@ export async function POST(request: Request) {
       location_id: location_id ?? null,
       flow_step: activeRatingFlow ? 'rating_asked' : null,
     })
+    if (insertError) {
+      console.error('Individual insert — error en message_logs:', insertError)
+    }
 
     if (messageStatus === 'failed') {
       return NextResponse.json({ error: 'Error al enviar el mensaje por WhatsApp' }, { status: 502 })
@@ -225,25 +231,30 @@ export async function POST(request: Request) {
   }
 
   // ── Modo batch ─────────────────────────────────────────────────────────────
-  let sentCount = 0
-  let failedCount = 0
-  const results: { customer_name: string; phone: string; status: string; error?: string }[] = []
+  // Los contactos del chunk se procesan en paralelo (Promise.allSettled) en
+  // vez de secuencialmente: 10 llamadas secuenciales a Twilio se acercan al
+  // timeout de 10s de las funciones de Netlify. allSettled asegura que un
+  // contacto que falla no aborte el resto del chunk.
+  type ContactResult = { customer_name: string; phone: string; status: string; error?: string }
 
-  for (const contact of contacts) {
+  // Bindings no-nulos: TS no propaga el narrowing de `if (!org)`/`if (!waba)`
+  // hacia adentro de processContact (closure invocada de forma asíncrona).
+  const safeOrg = org
+  const safeWaba = waba
+
+  async function processContact(contact: { customer_name: unknown; phone: unknown }): Promise<ContactResult> {
     const { customer_name: cName, phone: cPhone } = contact
 
     const validationError = validateContact(cName, cPhone)
     if (validationError) {
-      failedCount++
-      results.push({ customer_name: cName ?? '', phone: cPhone ?? '', status: 'failed', error: validationError })
-      continue
+      return { customer_name: (cName as string) ?? '', phone: (cPhone as string) ?? '', status: 'failed', error: validationError }
     }
 
     const fullPhone = formatArgentinePhone((cPhone as string).trim())
 
-    if (await isBlacklisted(org.id, fullPhone)) {
-      await getServiceClient().from('message_logs').insert({
-        org_id: org.id,
+    if (await isBlacklisted(safeOrg.id, fullPhone)) {
+      const { error: insertError } = await getServiceClient().from('message_logs').insert({
+        org_id: safeOrg.id,
         customer_name: (cName as string).trim(),
         phone: fullPhone,
         status: 'blocked',
@@ -251,9 +262,10 @@ export async function POST(request: Request) {
         wam_id: null,
         location_id: location_id ?? null,
       })
-      results.push({ customer_name: (cName as string).trim(), phone: fullPhone, status: 'blocked' })
-      failedCount++
-      continue
+      if (insertError) {
+        console.error('Batch insert (blocked) — error en message_logs:', insertError)
+      }
+      return { customer_name: (cName as string).trim(), phone: fullPhone, status: 'blocked' }
     }
 
     let messageStatus: 'sent' | 'failed' = 'sent'
@@ -262,13 +274,13 @@ export async function POST(request: Request) {
 
     if (!isMock) {
       const result = await dispatchToTwilio(
-        org.name,
+        safeOrg.name,
         reviewLink,
         (cName as string).trim(),
         fullPhone,
-        waba.twilio_subaccount_sid,
-        waba.phone_number,
-        waba.template_sid,
+        safeWaba.twilio_subaccount_sid,
+        safeWaba.phone_number,
+        safeWaba.template_sid,
         activeRatingFlow
       )
       if (result.error) {
@@ -280,7 +292,7 @@ export async function POST(request: Request) {
     }
 
     const insertPayload = {
-      org_id: org.id,
+      org_id: safeOrg.id,
       customer_name: (cName as string).trim(),
       phone: fullPhone,
       status: messageStatus,
@@ -289,20 +301,35 @@ export async function POST(request: Request) {
       location_id: location_id ?? null,
       flow_step: activeRatingFlow ? 'rating_asked' : null,
     }
-    console.log('Batch insert — payload:', insertPayload)
     const { error: insertError } = await getServiceClient().from('message_logs').insert(insertPayload)
     if (insertError) {
       console.error('Batch insert — error en message_logs:', insertError)
-    } else {
-      console.log('Batch insert — OK para', (cName as string).trim(), fullPhone)
     }
 
     if (messageStatus === 'sent') {
-      sentCount++
-      results.push({ customer_name: (cName as string).trim(), phone: fullPhone, status: 'sent' })
+      return { customer_name: (cName as string).trim(), phone: fullPhone, status: 'sent' }
+    }
+    return { customer_name: (cName as string).trim(), phone: fullPhone, status: 'failed', error: errorDetail ?? undefined }
+  }
+
+  const settled = await Promise.allSettled(contacts.map(processContact))
+
+  let sentCount = 0
+  let failedCount = 0
+  const results: ContactResult[] = []
+
+  for (const outcome of settled) {
+    if (outcome.status === 'fulfilled') {
+      results.push(outcome.value)
+      if (outcome.value.status === 'sent') {
+        sentCount++
+      } else {
+        failedCount++
+      }
     } else {
+      console.error('Batch — contacto rechazado inesperadamente:', outcome.reason)
       failedCount++
-      results.push({ customer_name: (cName as string).trim(), phone: fullPhone, status: 'failed', error: errorDetail ?? undefined })
+      results.push({ customer_name: '', phone: '', status: 'failed', error: 'Error inesperado al procesar el contacto' })
     }
   }
 

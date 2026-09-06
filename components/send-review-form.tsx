@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { parseContacts, ParsedContactRow } from '@/lib/parse-contacts'
+import { BulkPastePanel } from './bulk-paste-panel'
+import { BulkContactPreview } from './bulk-contact-preview'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
@@ -33,11 +36,17 @@ export function SendReviewForm({ locations }: Props) {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null)
+  const [bulkData, setBulkData] = useState<{
+    rows: ParsedContactRow[]
+    totalDataRows: number
+    truncated: boolean
+  } | null>(null)
 
   const isLoading = status === 'loading'
   const hasContacts = contacts.length > 0
   const hasCurrentContact = customerName.trim().length > 0 && phone.trim().length > 0
-  const locationName = locations.find(l => l.id === locationId)?.name ?? 'Sin sucursal'
+  // "Sede central" es el nombre que usa Settings para el review_link de la org.
+  const locationName = locations.find(l => l.id === locationId)?.name ?? 'Sede central'
 
   const clearContactFields = () => {
     setCustomerName('')
@@ -105,6 +114,26 @@ export function SendReviewForm({ locations }: Props) {
     setBatchResult(null)
   }
 
+  const loadBulkData = (raw: string) => {
+    const parsed = parseContacts(raw)
+    if (parsed.rows.length === 0) return
+    setBulkData({ rows: parsed.rows, totalDataRows: parsed.totalDataRows, truncated: parsed.truncated })
+  }
+
+  const handleNamePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text')
+    if (text.includes('\n') || text.includes('\t')) {
+      e.preventDefault()
+      loadBulkData(text)
+    }
+    // Pegado de una sola línea: comportamiento normal, no rompe el alta de a uno.
+  }
+
+  const handleBulkFinished = () => {
+    setBulkData(null)
+    router.refresh()
+  }
+
   if (status === 'success') {
     return (
       <div className="text-center py-8">
@@ -141,8 +170,11 @@ export function SendReviewForm({ locations }: Props) {
         </div>
       )}
 
-      {/* Sucursal — fija para todo el batch */}
-      {locations.length > 0 && (
+      {/* Sucursal del alta manual. Se oculta mientras el preview de pegado
+          masivo está montado: ese lote tiene su propio selector y dos
+          selectores en pantalla no dejan claro cuál aplica. El valor vive en
+          este componente, así que al cerrar el preview reaparece como estaba. */}
+      {!bulkData && locations.length > 0 && (
         <div>
           <label htmlFor="location" className="block text-sm font-medium text-[#1a4793] mb-1">
             Sucursal
@@ -154,7 +186,7 @@ export function SendReviewForm({ locations }: Props) {
             className="w-full px-3 py-2 border border-[#b4b7d9] rounded-md focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa] text-sm bg-white text-[#1a4793]"
             disabled={isLoading}
           >
-            <option value="">Sin sucursal (link general)</option>
+            <option value="">Sede central</option>
             {locations.map((loc) => (
               <option key={loc.id} value={loc.id}>
                 {loc.name}
@@ -164,6 +196,17 @@ export function SendReviewForm({ locations }: Props) {
         </div>
       )}
 
+      {bulkData ? (
+        <BulkContactPreview
+          parsedRows={bulkData.rows}
+          totalDataRows={bulkData.totalDataRows}
+          truncated={bulkData.truncated}
+          locations={locations}
+          onCancel={() => setBulkData(null)}
+          onFinished={handleBulkFinished}
+        />
+      ) : (
+      <>
       {/* Formulario de carga de contacto */}
       <form onSubmit={hasContacts && !hasCurrentContact ? (e) => { e.preventDefault(); handleSendAll() } : hasContacts ? (e) => { e.preventDefault(); handleAdd() } : handleSendOne} className="space-y-4">
         <div>
@@ -179,6 +222,7 @@ export function SendReviewForm({ locations }: Props) {
             className="w-full px-3 py-2 border border-[#b4b7d9] rounded-md focus:outline-none focus:ring-2 focus:ring-[#646caa] focus:border-[#646caa] text-sm text-[#00246b] placeholder:text-[#b4b7d9]"
             disabled={isLoading}
             onKeyDown={handleKeyDown}
+            onPaste={handleNamePaste}
           />
         </div>
 
@@ -229,6 +273,8 @@ export function SendReviewForm({ locations }: Props) {
         </div>
       </form>
 
+      <BulkPastePanel onProcess={loadBulkData} disabled={isLoading} />
+
       {/* Lista de contactos agregados */}
       {hasContacts && (
         <div className="space-y-2">
@@ -265,6 +311,8 @@ export function SendReviewForm({ locations }: Props) {
             {isLoading ? 'Enviando...' : `Enviar todos (${contacts.length})`}
           </button>
         </div>
+      )}
+      </>
       )}
     </div>
   )
