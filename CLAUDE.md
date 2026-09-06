@@ -43,7 +43,7 @@ NEXT_PUBLIC_WABA_MOCK=true              # Activar mock de WABA en desarrollo (om
 TWILIO_ACCOUNT_SID=                     # Master account SID
 TWILIO_AUTH_TOKEN=                      # Master auth token
 TWILIO_TEMPLATE_SID=                    # SID del template aprobado en Twilio
-TWILIO_TEMPLATE_RATING_SID=            # SID del template de rating (pendiente aprobación Meta)
+TWILIO_TEMPLATE_RATING_SID=            # SID del template `nps` de rating — HX0dabea35b395cb6dbddc179ee290927b (aprobado Utility)
 FLOW_CONVERSATIONAL_ENABLED=false      # Feature flag para activar el flujo de rating (off por default)
 TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido entre todos los clientes)
 ```
@@ -100,23 +100,27 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 - [x] Sidebar colapsado oculta: nombre de la organización, labels de los links (se muestran via tooltip nativo `title`), bloque "¿Necesitás ayuda?" y label del logout. Solo quedan íconos centrados.
 - [x] SidebarProvider (components/sidebar-context.tsx) expone { collapsed, toggle } para que el layout ajuste el margen izquierdo del main sin sincronización manual vía localStorage.
 - [ ] Sidebar colapsado — tratamiento del logo: refinar con iso dedicado (public/logo-medano-iso.png) para que quede legible en 64px. Por ahora el logo actual se mantiene sin cambios de tamaño dentro del rail, con overflow-hidden en el contenedor.
-- [ ] Template C "envío directo mejorado" submetido a Meta el 14 mayo 2026 
-  — pendiente aprobación. Copy:
+- [x] Template C "envío directo mejorado" — APROBADO como Marketing. Nombre
+  real en el WABA: `copy_of_medano_review_request_4`, SID
+  `HX869cb3b4da11bf8f83263b0f66d3bde2`. Verificado el 6 sep 2026; estaba
+  aprobado desde mayo. Copy:
   ```
   Hola {{1}}, gracias por elegir {{2}}.
-  
+
   Contanos cómo fue tu experiencia:
   {{3}}
-  
+
   Para no recibir más mensajes, respondé BAJA.
   ```
-  Reemplaza el actual medano_review_request_4 cuando esté aprobado. Cambios 
-  vs el actual: link en línea 3 (antes del Read more de WhatsApp mobile), 
-  tono "compartí experiencia" en lugar de "pedir ayuda", cuerpo más corto.
+  Mejora sobre `medano_review_request_4`: link en línea 3 (antes del Read more
+  de WhatsApp mobile), tono "compartí experiencia" en lugar de "pedir ayuda",
+  cuerpo más corto. Queda disponible como alternativa del envío directo — NO se
+  promueve a producción por ahora.
 
 - [x] Fase 7 (parte 4): Flujo conversacional de rating con bifurcación 
   — infraestructura implementada con feature flag FLOW_CONVERSATIONAL_ENABLED. 
-  Activación pendiente de aprobación del template de rating por Meta.
+  El template de rating (`nps`) está aprobado desde mayo — la activación es
+  solo configuración en Netlify, ver TODO.
 - [x] Fase 7 parte 4 (infraestructura) commiteada y deployada — commit 
   bf52b4c (14 mayo 2026). 7 archivos, 602 inserciones, 72 eliminaciones. 
   Migración SQL aplicada en Supabase (columnas flow_step + satisfaction_score 
@@ -138,14 +142,12 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
     bugs abiertos abajo.
   - ⏸ Escenario opt-out (respuesta BAJA) NO probado todavía. Se prueba 
     junto con el fix del bug en la próxima sesión.
-- [x] Template de rating (1-5) submitido a Meta a través de Twilio el 
-  14 mayo 2026 — esperando aprobación. Categoría intentada: Utility 
-  (encuesta post-servicio); si Meta lo rechaza, resubmetir como Marketing. 
-  SID del template asignado al aprobarse — cargar en Netlify como 
-  TWILIO_TEMPLATE_RATING_SID.
-  **Al 6 sep 2026 sigue sin novedades, cuatro meses después de submeterlo.** A
-  esta altura es más probable que esté rechazado o colgado que en cola. Verificar
-  el estado real en Twilio Console antes de asumir que sigue esperando.
+- [x] Template de rating (1-5) `nps` — **APROBADO como Utility**, estado Activa,
+  0 envíos. SID `HX0dabea35b395cb6dbddc179ee290927b`. Submetido el 14 mayo 2026
+  y aprobado ese mismo mes; el MD lo dio por "esperando aprobación" durante
+  cuatro meses porque nadie verificó. Confirmado el 6 sep 2026 en el WhatsApp
+  Manager del WABA de COBA. Es el template de Fase 7 parte 4 — cargar en Netlify
+  como `TWILIO_TEMPLATE_RATING_SID`.
 
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
@@ -266,16 +268,31 @@ Infra compartida (~$50 Supabase + hosting) se divide entre clientes activos. Bre
 - Clasificado por Meta como **marketing** ($0.0618/msg en Argentina). No es reclasificable a utility.
 - Aprobado. En uso. No cambiar sin re-aprobación.
 
-### Templates aprobados y en proceso (al 14 mayo 2026)
+### Templates del WABA de COBA (verificado en WhatsApp Manager, 6 sep 2026)
 
-- `medano_review_request_4` (HX9cdb22e28be112f5020f1a412da0f88f) — 
-  ACTIVO en producción. Aprobado 23 abril 2026.
-- Template C "envío directo mejorado" — SUBMETIDO 14 mayo 2026, 
-  esperando aprobación Meta. Mejora del actual con link en línea 3 
-  y tono "contanos experiencia".
-- Template de rating (1-5) para flujo conversacional — POR SUBMETEAR. 
-  Intentar primero como Utility (encuesta post-servicio), si Meta 
-  rechaza, reenviar como Marketing.
+- `medano_review_request_4` (`HX9cdb22e28be112f5020f1a412da0f88f`) — APROBADO,
+  Marketing. **ACTIVO en producción.** Aprobado 23 abril 2026.
+- `nps` (`HX0dabea35b395cb6dbddc179ee290927b`) — APROBADO como **Utility**,
+  estado Activa, 0 envíos. Es el template de rating de Fase 7 parte 4.
+- `copy_of_medano_review_request_4` (`HX869cb3b4da11bf8f83263b0f66d3bde2`) —
+  APROBADO, Marketing. Es el "Template C" (envío directo mejorado). Disponible
+  como alternativa; no se promueve a producción por ahora.
+- `medano_review_request_5` y `medano_review_request_3` — RECHAZADOS.
+
+**Implicancia económica de que `nps` haya quedado Utility:** los templates
+utility son gratis dentro del service window de 24hs, y el segundo mensaje del
+flujo (link o pedido de feedback) es free-form, también gratis en ventana. El
+costo real queda en el fee de Twilio: ~$0.012 por intento contra ~$0.0668 del
+envío directo actual. Es el escenario óptimo que los aprendizajes del 14 mayo
+contemplaban como hipótesis — se confirmó.
+
+**Lección de método:** el MD arrastró durante cuatro meses un estado inventado
+("esperando aprobación") que nadie verificó contra la fuente. El estado de un
+template se mira en el WhatsApp Manager del WABA, no se deduce del silencio.
+
+**Nota — WABA duplicado:** existe un WABA "Médano" separado del de COBA, con el
+número +1 365 906 3072 repetido en estado "No verificado" y sin plantillas. NO es
+el que opera en producción. Dejarlo quieto; anotado solo para que no confunda.
 
 ### Técnicas
 - Auth con `@supabase/ssr` (no `auth-helpers-nextjs`, deprecated para App Router)
@@ -1551,16 +1568,31 @@ Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error 
 
 ## TODO próxima sesión (post 6 sep 2026)
 
-**Antes que nada:**
-- Chequear en Twilio Console el estado del template de rating submetido el 14 mayo
-  2026. Cuatro meses sin novedades: puede estar aprobado, rechazado o colgado. Si
-  está aprobado, activar Fase 7 parte 4 es cargar `TWILIO_TEMPLATE_RATING_SID` en
-  Netlify y flipear `FLOW_CONVERSATIONAL_ENABLED` — la infraestructura ya está
-  deployada desde el commit `bf52b4c`.
-- Onboardear el segundo cliente con el checklist operativo (~25-30 min). No
-  requiere código: el refactor multi-tenant del 18 jul ya lo desbloqueó.
+**Prioridad 1 — activar Fase 7 parte 4 (flujo conversacional de rating).** El
+template `nps` está aprobado como Utility desde mayo y la infraestructura está
+deployada desde el commit `bf52b4c`: la activación es configuración, sin código.
 
-**Prueba real en producción (pendiente, esta semana):**
+1. Cargar `TWILIO_TEMPLATE_RATING_SID=HX0dabea35b395cb6dbddc179ee290927b` en
+   Netlify.
+2. Poner `FLOW_CONVERSATIONAL_ENABLED=true`.
+3. Redeploy.
+
+Prueba end-to-end con número propio ANTES de dejarlo prendido para COBA — este
+código nunca corrió en producción:
+- Responder "5" → verificar que llega el link de reseña.
+- Responder "2" → verificar que llega el pedido de detalle, y que al escribir el
+  detalle se reenvía al `forwarding_number` con el formato de feedback negativo.
+- Verificar en `message_logs` que `flow_step` y `satisfaction_score` quedan
+  guardados en cada paso.
+- Probar el parseo flexible: responder "muy bien" en vez de un número.
+- **Crítico:** verificar que la protección de opt-out durante flujo activo
+  funciona. Un usuario que responde "2" y después escribe "no me atendieron
+  bien" NO puede quedar en la blacklist por la palabra "no". Chequear
+  `/dashboard/blacklist` después de la prueba.
+
+Si algo falla, apagar el flag — vuelve al envío directo — y debuggear sin presión.
+
+**Prioridad 2 — prueba real en producción del pegado masivo:**
 - Envío individual al número propio: verificar que llega, que el status pasa a
   `delivered`, y que si se responde el badge pasa a "Respondido" (violeta).
   Valida Twilio + firma del webhook + inbound, que no se pueden probar en local.
@@ -1568,6 +1600,10 @@ Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error 
   timeout.
 - Limpiar las filas de prueba con `scripts/cleanup-test-rows.mjs` (dry-run
   primero).
+
+**Prioridad 3 — onboardear el segundo cliente** con el checklist operativo
+(~25-30 min). No requiere código: el refactor multi-tenant del 18 jul ya lo
+desbloqueó.
 
 **Sin validar (deployado igual, riesgo asumido):**
 - Dedupe contra historial de 90 días.
