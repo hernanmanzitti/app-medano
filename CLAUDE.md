@@ -143,6 +143,9 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
   (encuesta post-servicio); si Meta lo rechaza, resubmetir como Marketing. 
   SID del template asignado al aprobarse — cargar en Netlify como 
   TWILIO_TEMPLATE_RATING_SID.
+  **Al 6 sep 2026 sigue sin novedades, cuatro meses después de submeterlo.** A
+  esta altura es más probable que esté rechazado o colgado que en cola. Verificar
+  el estado real en Twilio Console antes de asumir que sigue esperando.
 
 - [ ] Fase 10: Estadísticas completas (KPIs, filtros, click tracking)
 - [ ] Fase 11: Bot de WhatsApp (canal alternativo de envío)
@@ -192,6 +195,34 @@ TWILIO_BOT_NUMBER=                      # Número Twilio del bot (compartido ent
 ### Próxima fase de desarrollo — tutoriales
 - **Tutorial interno Medano**: paso a paso para onboardear un cliente nuevo (basado en el checklist de arriba)
 - **Tutorial cliente**: cómo usar el dashboard (enviar solicitudes, sucursales, historial, opt-out, derivación)
+
+---
+
+## Modelo operativo — primeros clientes pagos
+
+**Por ahora los clientes no entran al dashboard: opera Medano en su nombre.** Es
+una decisión de producto, no solo de manejo de cuentas — hoy Medano se vende como
+servicio operado, no como SaaS autoservicio.
+
+**Cuentas por cliente.** Un usuario = una org, con alias de email sobre la casilla
+de la empresa: `hola+coba@medano.co`, `hola+prostore@medano.co`, etc. Gmail trata
+cada alias como una casilla distinta y todo cae en `hola@medano.co`, sin escribir
+código. El alias va sobre la casilla de la empresa y no sobre el mail personal de
+quien opera: si cambia quién opera, no hay que migrar cuentas.
+
+Dos consecuencias de ese esquema:
+- Los mails de sistema de Supabase (invitación, reset de contraseña) de **todos**
+  los clientes llegan a `hola@medano.co`.
+- COBA hoy está bajo el Gmail personal de Hernán. Migrarlo a
+  `hola+coba@medano.co` antes de que haya varios clientes con criterios
+  mezclados.
+
+Dos consecuencias sobre el roadmap:
+- **Fase 12 (Become mode) no urge**: el switch entre cuentas se resuelve con los
+  alias más una ventana de incógnito.
+- **Fase 6 (onboarding wizard) pierde prioridad**: un wizard para clientes que no
+  entran al dashboard no sirve. Se retoma si el producto pasa a venderse como
+  autoservicio.
 
 ---
 
@@ -827,10 +858,11 @@ created_at TIMESTAMPTZ DEFAULT NOW()
 ```
 
 **Por qué se difiere hasta 10+ clientes:** el switch entre cuentas no necesita
-código todavía. Con alias de email (`hernan+coba@medano.co`,
-`hernan+cliente2@medano.co`) y una ventana de incógnito, Hernán opera dos o tres
-cuentas sin escribir una línea. El Become mode se justifica cuando el switch pasa
-varias veces por día, no dos veces por semana.
+código todavía. Con alias de email sobre la casilla de la empresa
+(`hola+coba@medano.co`, `hola+prostore@medano.co` — ver "Modelo operativo") y una
+ventana de incógnito, Medano opera dos o tres cuentas sin escribir una línea. El
+Become mode se justifica cuando el switch pasa varias veces por día, no dos veces
+por semana.
 
 ---
 
@@ -1538,6 +1570,13 @@ Regla general: todo UPDATE en un webhook debe desestructurar y loguear `{ error 
 - Preview en vista mobile.
 
 **Higiene pendiente:**
+- Cargar `SUPABASE_SECRET_KEY` en Netlify y sacar la vieja, en este orden:
+  copiar el valor de `SUPABASE_SERVICE_ROLE_KEY` desde Netlify → agregar
+  `SUPABASE_SECRET_KEY` con el mismo valor y el mismo scope → redeploy → probar
+  `/dashboard/blacklist` (usa service role, así que falla ruidoso si no
+  resuelve) → recién ahí borrar la vieja y redeployar otra vez. Si se saca la
+  vieja antes de verificar la nueva, se rompe producción: el fallback se queda
+  sin ninguna de las dos.
 - `supabase/.temp/` al `.gitignore` (commit propio de una línea).
 - Averiguar qué es `logo-medano-final.png`, suelto en la raíz — puede ser el iso
   para el sidebar colapsado que este MD tiene pendiente.
